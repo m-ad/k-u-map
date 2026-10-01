@@ -147,3 +147,63 @@ def dedupe(items: list[dict[str, Any]], same_name_m: float = 150.0, unnamed_m: f
             merged["name"] = item["name"] or k["name"]
         kept[match] = merged
     return kept
+
+
+def merge_sources(
+    osm: list[dict[str, Any]], official: list[dict[str, Any]], max_m: float = 80.0
+) -> list[dict[str, Any]]:
+    """Cross-check OSM facilities against an official list.
+
+    Names differ between the sources ("Kath. Kindergarten St. Peter" vs
+    "Kindergarten St. Peter und Paul"), so items are paired by distance only:
+    closest pairs first, each item used at most once. A pair keeps the OSM
+    position and name, takes the stronger status with its reason and lists
+    both sources; unpaired official items are appended.
+
+    Parameters
+    ----------
+    osm, official
+        Items with ``name``, ``x``, ``y`` (metres), ``status``, ``reason``
+        and ``source``. ``osm`` should include excluded items, so the official
+        list can overrule a misleading OSM tag.
+    max_m
+        Largest distance treated as the same facility.
+
+    Returns
+    -------
+    list
+        OSM items (in input order, merged where paired), then unpaired
+        official items.
+    """
+    pairs = sorted(
+        (math.hypot(o["x"] - f["x"], o["y"] - f["y"]), i, j)
+        for i, o in enumerate(osm)
+        for j, f in enumerate(official)
+    )
+    match: dict[int, int] = {}
+    used: set[int] = set()
+    for d, i, j in pairs:
+        if d > max_m:
+            break
+        if i in match or j in used:
+            continue
+        match[i] = j
+        used.add(j)
+    out = []
+    for i, o in enumerate(osm):
+        if i not in match:
+            out.append(o)
+            continue
+        f = official[match[i]]
+        better = f if _RANK[f["status"]] > _RANK[o["status"]] else o
+        out.append(
+            {
+                **o,
+                "name": o["name"] or f["name"],
+                "status": better["status"],
+                "reason": better["reason"],
+                "source": f"{o['source']} + {f['source']}",
+            }
+        )
+    out.extend(f for j, f in enumerate(official) if j not in used)
+    return out

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from pipeline.kita_rules import CONFIRMED, EXCLUDED, PROBABLE, classify, dedupe
+from pipeline.kita_rules import CONFIRMED, EXCLUDED, PROBABLE, classify, dedupe, merge_sources
 
 
 def kg(name: str | None = None, amenity: str = "kindergarten", **tags: str) -> dict[str, str]:
@@ -91,3 +91,35 @@ def test_dedupe_prefers_stronger_evidence() -> None:
         {"name": "Kita Sonne", "x": 10.0, "y": 0.0, "status": CONFIRMED},
     ]
     assert dedupe(items)[0]["status"] == CONFIRMED
+
+
+def _item(name: str, x: float, status: str, source: str) -> dict:
+    return {"name": name, "x": x, "y": 0.0, "status": status, "reason": f"{source}: {status}", "source": source}
+
+
+def test_merge_sources_upgrades_matched_osm_items_and_adds_missing_ones() -> None:
+    osm = [
+        _item("Villa Bambini", 0.0, EXCLUDED, "OSM"),  # amenity=childcare, but the city lists it as Kindergarten
+        _item("Kita Sonne", 1000.0, PROBABLE, "OSM"),
+        _item("Kindergarten Mond", 2000.0, CONFIRMED, "OSM"),
+    ]
+    official = [
+        _item("Kinderhaus Villa Bambini", 30.0, CONFIRMED, "Stadt"),
+        _item("Kindergarten Mond", 2010.0, PROBABLE, "Stadt"),
+        _item("Kindergarten Neu", 3000.0, CONFIRMED, "Stadt"),
+    ]
+    out = merge_sources(osm, official, max_m=80.0)
+    assert [(i["name"], i["x"], i["status"], i["source"]) for i in out] == [
+        ("Villa Bambini", 0.0, CONFIRMED, "OSM + Stadt"),
+        ("Kita Sonne", 1000.0, PROBABLE, "OSM"),
+        ("Kindergarten Mond", 2000.0, CONFIRMED, "OSM + Stadt"),
+        ("Kindergarten Neu", 3000.0, CONFIRMED, "Stadt"),
+    ]
+    assert out[0]["reason"] == "Stadt: confirmed"
+
+
+def test_merge_sources_matches_each_osm_item_once_to_the_nearest() -> None:
+    osm = [_item("A", 0.0, PROBABLE, "OSM")]
+    official = [_item("far", 60.0, CONFIRMED, "Stadt"), _item("near", 10.0, CONFIRMED, "Stadt")]
+    out = merge_sources(osm, official, max_m=80.0)
+    assert [(i["name"], i["source"]) for i in out] == [("A", "OSM + Stadt"), ("far", "Stadt")]
