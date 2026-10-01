@@ -24,6 +24,15 @@ def test_is_special_line(ref: str, special: bool) -> None:
     assert is_special_line(ref) is special
 
 
+@pytest.mark.parametrize(
+    ("ref", "mode", "special"),
+    [("SEV 10", "bus", True), ("SEV S7/S8", "bus", True), ("RE2", "bus", True), ("MEX17", "bus", True),
+     ("S5", "bus", True), ("S5", "tram", False), ("125X", "bus", False), ("RE2", "rail", False)],
+)
+def test_rail_replacement_buses_are_special(ref: str, mode: str, special: bool) -> None:
+    assert is_special_line(ref, mode) is special
+
+
 def test_service_periods_split_at_2027_cutoff() -> None:
     assert NETWORK_CUTOFF == dt.date(2027, 1, 1)
     calendar = [

@@ -250,9 +250,14 @@ def terrarium_encode(h: np.ndarray) -> np.ndarray:
 
 
 def terrain_tiles(
-    elev: np.ndarray, grid: Grid, bbox_wgs84: tuple[float, float, float, float], zooms: range, tile_px: int = 512
+    elev: np.ndarray,
+    grid: Grid,
+    bbox_wgs84: tuple[float, float, float, float],
+    zooms: range,
+    tile_px: int = 512,
+    quantum: float = 0.1,
 ) -> dict[tuple[int, int, int], bytes]:
-    """Render Terrarium PNG tiles covering ``bbox_wgs84``.
+    """Render Terrarium tiles (lossless WebP) covering ``bbox_wgs84``.
 
     Cells outside the DEM are filled with the nearest valid height so the
     client-side hillshade fades to flat instead of showing a cliff at the edge.
@@ -287,8 +292,11 @@ def terrain_tiles(
                 if np.isnan(dst).any():
                     idx = ndimage.distance_transform_edt(np.isnan(dst), return_distances=False, return_indices=True)
                     dst = dst[tuple(idx)]
+                # 0.1 m steps are below the DGM's +-0.15 m accuracy but make the
+                # fractional channel compressible: ~3x smaller tiles than raw PNG.
+                dst = np.round(dst / quantum) * quantum
                 buf = io.BytesIO()
-                Image.fromarray(terrarium_encode(dst), "RGB").save(buf, "PNG", optimize=True)
+                Image.fromarray(terrarium_encode(dst), "RGB").save(buf, "WEBP", lossless=True, quality=100, method=6)
                 tiles[(zoom, tx, ty)] = buf.getvalue()
     return tiles
 

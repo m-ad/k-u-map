@@ -37,14 +37,19 @@ def mode_of(route_type: str) -> str | None:
 
 
 _NIGHT = re.compile(r"^N[L]?\d+$")
+_RAIL_REF = re.compile(r"^(RE|RB|IRE|MEX|S)\s?\d+[a-z]?$")
 
 
-def is_special_line(ref: str) -> bool:
-    """Whether a line is a night line (N1, NL2) or an "Einsatzwagen" (E).
+def is_special_line(ref: str, mode: str | None = None) -> bool:
+    """Whether a line is a night line, an "Einsatzwagen" or rail replacement.
 
-    Both duplicate regular routes and would clutter a structural comparison.
+    Night lines (N1, NL2) and Einsatzwagen (E) duplicate regular routes;
+    Schienenersatzverkehr (SEV, or a *bus* carrying a rail line's ref such as
+    "RE2") is temporary. All would clutter a structural comparison.
     """
-    return ref == "E" or bool(_NIGHT.match(ref))
+    if ref == "E" or ref.startswith("SEV") or _NIGHT.match(ref):
+        return True
+    return mode == "bus" and bool(_RAIL_REF.match(ref))
 
 
 def _parse(d: str) -> dt.date:

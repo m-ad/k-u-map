@@ -147,7 +147,7 @@ def process_feed(
         # On-demand taxi services have no fixed route. Regional trains are left to
         # the OSM rail layer: the SWU feed has none, and showing them only for
         # Karlsruhe would skew the comparison.
-        if mode in (None, "rail") or not ref or is_special_line(ref) or "taxi" in agency.lower():
+        if mode in (None, "rail") or not ref or is_special_line(ref, mode) or "taxi" in agency.lower():
             continue
         routes[r["route_id"]] = {
             "ref": ref,

@@ -54,3 +54,10 @@ def run_tiles(project: Project, manifest: Manifest, *, osm_source: str) -> None:
     from . import tiles
 
     log.info("tile sizes (MB): %s", tiles.run(project))
+
+
+def run_metrics(project: Project, manifest: Manifest, *, osm_source: str) -> None:
+    """Compute the comparison metrics (``data/metrics.json``)."""
+    from . import metrics
+
+    metrics.run(project)

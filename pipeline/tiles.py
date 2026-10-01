@@ -78,9 +78,20 @@ ARCHIVES = (
 )
 
 
-def prepare_layer(project: Project, layer: str, out: Path) -> int:
-    """Concatenate one layer of all cities, adding ``city`` and per-feature minzoom."""
+def prepare_layer(project: Project, layer: str, out: Path) -> tuple[int, set[int]]:
+    """Concatenate one layer of all cities, adding ``city`` and a ``_mz`` minzoom.
+
+    The per-feature ``"tippecanoe": {"minzoom": n}`` member would be the natural
+    choice, but tippecanoe 2.49 (Ubuntu 24.04) then keeps only one line feature
+    per tile; ``_mz`` plus a ``$zoom`` feature filter avoids that bug.
+
+    Returns
+    -------
+    count, minzooms
+        Number of features and the distinct ``_mz`` values written.
+    """
     n = 0
+    zooms: set[int] = set()
     with open(out, "w", encoding="utf-8") as dst:
         for city in project.cities:
             src = layer_dir(city.id) / f"{layer}.geojsonl"
@@ -92,10 +103,16 @@ def prepare_layer(project: Project, layer: str, out: Path) -> int:
                     f["properties"]["city"] = city.id
                     mz = minzoom_for(layer, f["properties"])
                     if mz is not None:
-                        f["tippecanoe"] = {"minzoom": mz}
+                        f["properties"]["_mz"] = mz
+                        zooms.add(mz)
                     dst.write(json.dumps(f, ensure_ascii=False, separators=(",", ":")) + "\n")
                     n += 1
-    return n
+    return n, zooms
+
+
+def zoom_filter(zooms: set[int]) -> list:
+    """tippecanoe ``-j`` expression keeping a feature from zoom ``_mz`` upwards."""
+    return ["any", ["!has", "_mz"], *(["all", ["==", "_mz", z], [">=", "$zoom", z]] for z in sorted(zooms))]
 
 
 def build_vector(project: Project, archive: Archive, out_dir: Path) -> Path:
@@ -105,18 +122,24 @@ def build_vector(project: Project, archive: Archive, out_dir: Path) -> Path:
     with tempfile.TemporaryDirectory(dir=data_dir()) as tmp:
         args = ["tippecanoe", "-o", str(out), "-Z", str(archive.minzoom), "-z", str(archive.maxzoom), "-P", "-q",
                 "--force", "-n", archive.name, *archive.extra_args]
+        filters = {}
         for layer in archive.layers:
             path = Path(tmp) / f"{layer}.geojsonl"
-            if prepare_layer(project, layer, path) == 0:
+            count, zooms = prepare_layer(project, layer, path)
+            if count == 0:
                 raise ValueError(f"layer {layer!r} is empty for every city")
+            if zooms:
+                filters[layer] = zoom_filter(zooms)
             args += ["-L", f"{layer}:{path}"]
+        if filters:
+            args += ["-j", json.dumps(filters)]
         subprocess.run(args, check=True)
     log.info("tiles %s: %.1f MB", out.name, out.stat().st_size / 1e6)
     return out
 
 
 def build_terrain(project: Project, out_dir: Path, zooms: range = range(8, 14)) -> Path:
-    """Encode the 5 m DEMs as Terrarium PNG tiles in one PMTiles archive."""
+    """Encode the 5 m DEMs as Terrarium WebP tiles in one PMTiles archive."""
     tiles: dict[tuple[int, int, int], bytes] = {}
     west, south, east, north = 180.0, 90.0, -180.0, -90.0
     for city in project.cities:
@@ -137,7 +160,7 @@ def build_terrain(project: Project, out_dir: Path, zooms: range = range(8, 14)) 
         c = project.cities[0]
         writer.finalize(
             {
-                "tile_type": TileType.PNG,
+                "tile_type": TileType.WEBP,
                 "tile_compression": Compression.NONE,
                 "min_lon_e7": int(west * 1e7),
                 "min_lat_e7": int(south * 1e7),
