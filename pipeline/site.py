@@ -38,7 +38,15 @@ VENDOR = {
 }
 OVERLAYS = ("labels", "refpoints", "rings")
 SOURCE_ORDER = (
-    "osm", "gtfs_swu", "gtfs_kvv", "districts_ka", "dem_bw", "dem_by", "dem_copernicus", "fonts", "software",
+    "osm",
+    "gtfs_swu",
+    "gtfs_kvv",
+    "districts_ka",
+    "dem_bw",
+    "dem_by",
+    "dem_copernicus",
+    "fonts",
+    "software",
 )
 
 
@@ -52,7 +60,9 @@ def geojsonl_to_fc(src: Path, dst: Path) -> int:
     """Convert newline-delimited features to a FeatureCollection file."""
     feats = [json.loads(line) for line in src.read_text(encoding="utf-8").splitlines() if line.strip()]
     dst.parent.mkdir(parents=True, exist_ok=True)
-    dst.write_text(json.dumps({"type": "FeatureCollection", "features": feats}, ensure_ascii=False, separators=(",", ":")))
+    dst.write_text(
+        json.dumps({"type": "FeatureCollection", "features": feats}, ensure_ascii=False, separators=(",", ":"))
+    )
     return len(feats)
 
 
@@ -69,7 +79,8 @@ def build_meta(project: Project, manifest: Manifest) -> dict:
 
     def downloaded(source: str) -> str | None:
         dates = [e.downloaded for e in manifest.for_source(source)]
-        return max(dates) if dates else None
+        # DEM tiles may come from the CI cache without a fresh manifest entry.
+        return max(dates) if dates else coverage.get("downloaded", {}).get(source)
 
     osm_date = min(filter(None, stamps.values()), default=None)
     data_dates = {

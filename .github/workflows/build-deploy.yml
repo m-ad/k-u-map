@@ -1,0 +1,125 @@
+name: Build data, test, deploy to Pages
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    # Monthly rebuild (2nd of the month, 04:17 UTC) picks up new OSM, GTFS and,
+    # once published, the 2027 Ulm/Neu-Ulm network.
+    - cron: "17 4 2 * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  unit:
+    name: Unit tests
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+      - run: uv sync --locked
+      - name: Lint
+        run: |
+          uv run ruff check pipeline tests
+          uv run ruff format --check pipeline tests
+      - run: uv run pytest -q
+
+  build:
+    name: Build data and site
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    needs: unit
+    env:
+      # Validation and smoke tests must not silently skip in CI.
+      KUMAP_REQUIRE_BUILD: "1"
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: System tools (osmium, tippecanoe)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends osmium-tool tippecanoe
+
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: uv sync --locked
+      - run: npm ci --no-audit --no-fund
+
+      # Processed 5 m DEM (~60 MB). The key changes with the frames, the DEM code
+      # and the year, so the 2.6 GB of raw DGM tiles are fetched about once a year.
+      - name: Cache processed DEM
+        uses: actions/cache@v4
+        with:
+          path: data/dem
+          key: dem-${{ hashFiles('config/project.toml', 'pipeline/dem.py', 'pipeline/frames.py') }}-${{ github.run_id }}
+          restore-keys: |
+            dem-${{ hashFiles('config/project.toml', 'pipeline/dem.py', 'pipeline/frames.py') }}-
+
+      # Raw OSM/GTFS downloads and the manifest. The pipeline re-downloads files
+      # older than their max age (OSM 7 days, GTFS 3 days), so a restored cache
+      # only saves traffic within that window.
+      - name: Cache raw downloads
+        uses: actions/cache@v4
+        with:
+          path: |
+            data/cache/osm
+            data/cache/gtfs
+            data/cache/districts
+            data/manifest.json
+          key: raw-${{ github.run_id }}
+          restore-keys: raw-
+
+      - name: Build (download -> process -> tiles -> metrics -> site)
+        run: uv run python -m pipeline build
+
+      - name: Validate data
+        run: uv run pytest -q tests/test_validation.py
+
+      - name: Smoke test (Playwright)
+        run: |
+          uv run playwright install --with-deps chromium
+          uv run pytest -q tests/test_smoke.py
+
+      - name: Upload screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: screenshots
+          path: screenshots/
+          if-no-files-found: ignore
+
+      - name: Upload Pages artifact
+        if: github.event_name != 'pull_request'
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    name: Deploy to GitHub Pages
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    needs: build
+    runs-on: ubuntu-24.04
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/configure-pages@v5
+      - id: deployment
+        uses: actions/deploy-pages@v4

@@ -20,10 +20,10 @@ from .config import Project, data_dir
 from .frames import Bounds, city_frame
 from .osm_tags import (
     WATERWAY_LINES,
-    cycle_sides,
     classify_landuse,
     classify_rail,
     classify_road,
+    cycle_sides,
     is_water_area,
 )
 
@@ -32,7 +32,17 @@ log = logging.getLogger(__name__)
 PLACE_KINDS = {"city", "town", "village", "borough", "suburb", "quarter", "neighbourhood", "hamlet"}
 ADMIN_LEVELS = {"4", "6", "8", "9", "10", "11"}
 OSM_LAYERS = (
-    "admin", "border", "buildings", "cycle", "landuse", "places", "rail", "roads", "stations", "water", "waterway",
+    "admin",
+    "border",
+    "buildings",
+    "cycle",
+    "landuse",
+    "places",
+    "rail",
+    "roads",
+    "stations",
+    "water",
+    "waterway",
 )
 AREA_KEYS = ("building", "landuse", "natural", "leisure", "amenity", "waterway", "boundary", "place")
 
@@ -45,7 +55,8 @@ def layer_dir(city_id: str) -> Path:
 def feature_line(props: dict[str, Any], geom: BaseGeometry) -> str:
     """Serialise one GeoJSON feature as a single line."""
     # shapely.to_geojson is much faster than building dicts via mapping().
-    return f'{{"type":"Feature","properties":{json.dumps(props, ensure_ascii=False)},"geometry":{shapely.to_geojson(geom)}}}\n'
+    props_json = json.dumps(props, ensure_ascii=False)
+    return f'{{"type":"Feature","properties":{props_json},"geometry":{shapely.to_geojson(geom)}}}\n'
 
 
 class LayerWriter:
@@ -83,23 +94,24 @@ def _relation_pass(pbf: Path) -> tuple[set[int], dict[str, dict[str, str]]]:
     Returns
     -------
     border_ways
-        Ids of ways shared by two or more state (admin_level=4) relations.
+        Ids of ways that are members of a state (admin_level=4) relation. Every
+        such way is a state (or national) border; one membership suffices, so the
+        result does not depend on the neighbouring state's relation being in a
+        regional extract.
     route_colours
         Mode -> {line ref -> colour} from ``type=route`` relations; the KVV GTFS
         feed carries no colours, the OSM relations carry the official ones.
     """
-    membership: Counter[int] = Counter()
+    members: set[int] = set()
     colours: dict[str, dict[str, str]] = {}
     for rel in osmium.FileProcessor(str(pbf), osmium.osm.RELATION):
         tags = rel.tags
         if tags.get("boundary") == "administrative" and tags.get("admin_level") == "4":
-            for m in rel.members:
-                if m.type == "w":
-                    membership[m.ref] += 1
+            members.update(m.ref for m in rel.members if m.type == "w")
         elif tags.get("type") == "route" and tags.get("ref") and tags.get("colour"):
             mode = tags.get("route", "")
             colours.setdefault(mode, {}).setdefault(tags["ref"], tags["colour"])
-    return {wid for wid, n in membership.items() if n >= 2}, colours
+    return members, colours
 
 
 def _flags(tags: osmium.osm.TagList) -> dict[str, Any]:

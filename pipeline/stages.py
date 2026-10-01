@@ -18,7 +18,13 @@ def run_download(project: Project, manifest: Manifest, *, osm_source: str) -> No
     manifest.save()
     download.download_osm(project, manifest, mode=osm_source)
     manifest.save()
-    download.download_dem(project, manifest)
+    from . import dem
+
+    if dem.cached_products_valid(project):
+        # Processed DEM restored from cache: the 2.6 GB of raw tiles are not needed.
+        log.info("DEM products for key %s present; skipping DGM tile downloads", dem.dem_key(project))
+    else:
+        download.download_dem(project, manifest)
 
 
 def run_osm(project: Project, manifest: Manifest, *, osm_source: str) -> None:
@@ -39,7 +45,11 @@ def run_dem(project: Project, manifest: Manifest, *, osm_source: str) -> None:
     """Mosaic the DGM tiles and derive contours."""
     from . import dem
 
-    dem.run(project)
+    downloaded = {}
+    for sid in ("dem_bw", "dem_by", "dem_copernicus"):
+        dates = [e.downloaded for e in manifest.for_source(sid)]
+        downloaded[sid] = max(dates) if dates else None
+    dem.run(project, downloaded)
 
 
 def run_districts(project: Project, manifest: Manifest, *, osm_source: str) -> None:

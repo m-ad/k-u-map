@@ -215,8 +215,18 @@ def _osmium_extract(src: Path, bbox: Bounds, dest: Path) -> None:
         # Completing boundary relations (not only multipolygons) keeps district
         # polygons that cross the clip edge assemblable.
         [
-            "osmium", "extract", "--overwrite", "-s", "smart", "-S", "types=multipolygon,boundary",
-            "-b", f"{w},{s},{e},{n}", "-o", str(dest), str(src),
+            "osmium",
+            "extract",
+            "--overwrite",
+            "-s",
+            "smart",
+            "-S",
+            "types=multipolygon,boundary",
+            "-b",
+            f"{w},{s},{e},{n}",
+            "-o",
+            str(dest),
+            str(src),
         ],
         check=True,
     )
@@ -278,7 +288,9 @@ def download_osm(project: Project, manifest: Manifest, mode: str = "geofabrik") 
                     p.unlink()
         else:
             if mode == "mirror":
-                pbf = fetch(src["mirror_germany_url"], raw_dir / "germany-latest.osm.pbf", manifest, "osm", max_age_days=7)
+                pbf = fetch(
+                    src["mirror_germany_url"], raw_dir / "germany-latest.osm.pbf", manifest, "osm", max_age_days=7
+                )
             else:
                 pbf = Path(mode)
                 if manifest.get(pbf) is None:
@@ -289,7 +301,9 @@ def download_osm(project: Project, manifest: Manifest, mode: str = "geofabrik") 
                             path=str(pbf),
                             bytes=pbf.stat().st_size,
                             sha256="",
-                            downloaded=dt.datetime.fromtimestamp(pbf.stat().st_mtime, dt.UTC).isoformat(timespec="seconds"),
+                            downloaded=dt.datetime.fromtimestamp(pbf.stat().st_mtime, dt.UTC).isoformat(
+                                timespec="seconds"
+                            ),
                         )
                     )
             _osmium_extract(pbf, bbox, dest)
@@ -445,4 +459,3 @@ def download_dem(project: Project, manifest: Manifest, workers: int = 6) -> dict
         log.info("DEM %s: %d BW, %d BY, %d Copernicus tiles", city.id, *(len(paths[k]) for k in ("bw", "by", "cop")))
         manifest.save()
     return result
-

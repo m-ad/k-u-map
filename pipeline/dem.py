@@ -8,6 +8,8 @@ Copernicus GLO-30, a surface model, which is only used outside both states.
 
 from __future__ import annotations
 
+import datetime as dt
+import hashlib
 import io
 import json
 import logging
@@ -301,19 +303,74 @@ def terrain_tiles(
     return tiles
 
 
-def run(project: Project) -> dict:
+# Bump when the mosaic logic changes so cached DEM products are rebuilt.
+DEM_VERSION = 1
+
+
+def dem_key(project: Project) -> str:
+    """Identity of the DEM products: frames, resolution, code version and year.
+
+    The year makes CI refresh the cached DEM annually, matching the LGL's
+    yearly laser-scan updates, without downloading 2.6 GB of tiles every month.
+    """
+    payload = {
+        "v": DEM_VERSION,
+        "res": RES_M,
+        "year": dt.date.today().year,
+        "frames": {c.id: [round(v, 1) for v in city_frame(project, c).data_utm] for c in project.cities},
+    }
+    return hashlib.sha256(json.dumps(payload, sort_keys=True).encode()).hexdigest()[:16]
+
+
+def cached_products_valid(project: Project) -> bool:
+    """Whether ``data/dem`` already holds products for the current :func:`dem_key`."""
+    d = data_dir() / "dem"
+    key = d / "key.txt"
+    files = [d / f"{c.id}_{kind}.tif" for c in project.cities for kind in ("5m", "source")]
+    return key.exists() and key.read_text().strip() == dem_key(project) and all(f.exists() for f in files)
+
+
+def read_products(city_id: str) -> tuple[np.ndarray, np.ndarray, Grid]:
+    """Load a previously written elevation and source grid."""
+    d = data_dir() / "dem"
+    with rasterio.open(d / f"{city_id}_5m.tif") as r:
+        elev = r.read(1)
+        t = r.transform
+        grid = Grid(t.c, t.f, r.width, r.height, t.a)
+    with rasterio.open(d / f"{city_id}_source.tif") as r:
+        src = r.read(1)
+    return elev, src, grid
+
+
+def run(project: Project, downloaded: dict[str, str | None] | None = None) -> dict:
     """Build DEM products for all cities.
 
-    Writes ``data/dem/<city>_5m.tif``, ``data/dem/<city>_source.tif``,
-    ``data/layers/<city>/contours.geojsonl`` and ``data/dem/<city>_terrain.json``
-    (tile index), and returns coverage statistics.
+    Writes ``data/dem/<city>_5m.tif``, ``data/dem/<city>_source.tif`` and
+    ``data/layers/<city>/contours.geojsonl``; returns coverage statistics. If
+    products for the current :func:`dem_key` exist (e.g. restored from the CI
+    cache), the mosaic step is skipped and only contours are regenerated.
+
+    Parameters
+    ----------
+    project
+        Project configuration.
+    downloaded
+        DEM source id -> download timestamp, kept with the products so the site
+        footer can still date them when the raw tiles are not re-downloaded.
     """
-    stats = {}
+    out = data_dir() / "dem"
+    reuse = cached_products_valid(project)
+    previous = json.loads((out / "coverage.json").read_text()) if (out / "coverage.json").exists() else {}
+    stats: dict = {}
     for city in project.cities:
-        elev, src, grid = mosaic(project, city.id)
-        out = data_dir() / "dem"
-        write_geotiff(out / f"{city.id}_5m.tif", elev, grid, nodata=float("nan"))
-        write_geotiff(out / f"{city.id}_source.tif", src, grid, nodata=0)
+        if reuse:
+            elev, src, grid = read_products(city.id)
+            log.info("DEM %s: reusing cached products (key %s)", city.id, dem_key(project))
+        else:
+            elev, src, grid = mosaic(project, city.id)
+            write_geotiff(out / f"{city.id}_5m.tif", elev, grid, nodata=float("nan"))
+            write_geotiff(out / f"{city.id}_source.tif", src, grid, nodata=0)
+        layer_dir(city.id).mkdir(parents=True, exist_ok=True)
         feats = contours(elev, grid)
         with open(layer_dir(city.id) / "contours.geojsonl", "w", encoding="utf-8") as fh:
             for props, g in feats:
@@ -328,5 +385,8 @@ def run(project: Project) -> dict:
             "contours": len(feats),
         }
         log.info("DEM %s: %s", city.id, stats[city.id])
-    (data_dir() / "dem" / "coverage.json").write_text(json.dumps(stats, indent=1))
+    dates = {k: v for k, v in (downloaded or {}).items() if v} or previous.get("downloaded", {})
+    stats["downloaded"] = dates
+    (out / "coverage.json").write_text(json.dumps(stats, indent=1))
+    (out / "key.txt").write_text(dem_key(project))
     return stats

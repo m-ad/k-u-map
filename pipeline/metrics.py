@@ -10,7 +10,6 @@ from __future__ import annotations
 import datetime as dt
 import json
 import logging
-import math
 
 import numpy as np
 import rasterio
@@ -128,7 +127,9 @@ def city_metrics(project: Project, city: City) -> dict:
             for net in nets
         }
         res["lines"] = {
-            net: sorted({p["ref"] for p, g in lines if p["network"] == net and g.intersects(circle)}, key=lambda x: (len(x), x))
+            net: sorted(
+                {p["ref"] for p, g in lines if p["network"] == net and g.intersects(circle)}, key=lambda x: (len(x), x)
+            )
             for net in sorted({p["network"] for p, _ in lines})
         }
 

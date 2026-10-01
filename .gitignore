@@ -2,6 +2,7 @@
 /data/
 /dist/
 /test-results/
+/screenshots/
 /node_modules/
 .venv/
 __pycache__/

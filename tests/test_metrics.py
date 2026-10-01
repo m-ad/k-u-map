@@ -15,10 +15,7 @@ def test_skeleton_length_of_double_track_counts_once(angle_deg: float) -> None:
     nx, ny = -dy, dx
     # Two parallel tracks 3.5 m apart, 1 km long, buffered like the tram metric.
     tracks = MultiLineString(
-        [
-            LineString([(o * nx, o * ny), (1000 * dx + o * nx, 1000 * dy + o * ny)])
-            for o in (-1.75, 1.75)
-        ]
+        [LineString([(o * nx, o * ny), (1000 * dx + o * nx, 1000 * dy + o * ny)]) for o in (-1.75, 1.75)]
     )
     assert network_length(list(tracks.geoms)) == pytest.approx(1000.0, rel=0.01)
 

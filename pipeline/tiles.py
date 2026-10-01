@@ -28,8 +28,16 @@ log = logging.getLogger(__name__)
 # Per-feature minimum zooms keep low-zoom tiles light without dropping features
 # at the zooms where they matter.
 ROAD_MINZOOM = {
-    "motorway": 8, "trunk": 8, "primary": 8, "secondary": 9, "tertiary": 10, "minor": 11,
-    "pedestrian": 12, "track": 12, "service": 13, "path": 13,
+    "motorway": 8,
+    "trunk": 8,
+    "primary": 8,
+    "secondary": 9,
+    "tertiary": 10,
+    "minor": 11,
+    "pedestrian": 12,
+    "track": 12,
+    "service": 13,
+    "path": 13,
 }
 WATERWAY_MINZOOM = {"river": 8, "canal": 8, "stream": 11, "ditch": 13, "drain": 13}
 RAIL_MINZOOM = {"rail": 8, "tram": 10, "rail_service": 12, "tram_service": 13}
@@ -69,11 +77,14 @@ ARCHIVES = (
         15,
         ("--detect-shared-borders", "--no-simplification-of-shared-nodes", "--coalesce-densest-as-needed"),
     ),
-    # Buildings dominate the payload. Below z13 tippecanoe merges sub-pixel
-    # footprints, which keeps the urban texture visible at the default frame zoom.
-    Archive("buildings", ("buildings",), 11, 15, ("--coalesce-smallest-as-needed", "--detect-shared-borders")),
+    # Buildings dominate the payload. At low zooms tippecanoe merges sub-pixel
+    # footprints, which keeps the urban texture visible at the default frame zoom
+    # (about z10.7 on a phone, z11.4 on a desktop half-screen).
+    Archive("buildings", ("buildings",), 10, 15, ("--coalesce-smallest-as-needed", "--detect-shared-borders")),
     Archive("cycle", ("cycle",), 10, 15, ("--no-simplification-of-shared-nodes",)),
-    Archive("transit", ("transit_lines", "transit_stops"), 8, 15, ("-r1", "--no-feature-limit", "--no-tile-size-limit")),
+    Archive(
+        "transit", ("transit_lines", "transit_stops"), 8, 15, ("-r1", "--no-feature-limit", "--no-tile-size-limit")
+    ),
     Archive("contours", ("contours",), 10, 15, ("--coalesce-densest-as-needed",)),
 )
 
@@ -120,8 +131,21 @@ def build_vector(project: Project, archive: Archive, out_dir: Path) -> Path:
     out = out_dir / f"{archive.name}.pmtiles"
     out.unlink(missing_ok=True)
     with tempfile.TemporaryDirectory(dir=data_dir()) as tmp:
-        args = ["tippecanoe", "-o", str(out), "-Z", str(archive.minzoom), "-z", str(archive.maxzoom), "-P", "-q",
-                "--force", "-n", archive.name, *archive.extra_args]
+        args = [
+            "tippecanoe",
+            "-o",
+            str(out),
+            "-Z",
+            str(archive.minzoom),
+            "-z",
+            str(archive.maxzoom),
+            "-P",
+            "-q",
+            "--force",
+            "-n",
+            archive.name,
+            *archive.extra_args,
+        ]
         filters = {}
         for layer in archive.layers:
             path = Path(tmp) / f"{layer}.geojsonl"

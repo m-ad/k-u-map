@@ -202,12 +202,16 @@ def test_metrics_are_plausible() -> None:
         assert r["2"]["building_share_pct"] > r["6"]["building_share_pct"]
         assert r["2"]["tram_km"] <= r["4"]["tram_km"] <= r["6"]["tram_km"]
     # The topographic contrast the map is meant to show.
-    assert m["ulm"]["radii"]["4"]["elevation_m"]["range_p5_p95"] > 3 * m["ka"]["radii"]["4"]["elevation_m"]["range_p5_p95"]
+    assert (
+        m["ulm"]["radii"]["4"]["elevation_m"]["range_p5_p95"] > 3 * m["ka"]["radii"]["4"]["elevation_m"]["range_p5_p95"]
+    )
 
 
 def test_reference_points_are_inside_osm_features() -> None:
     # Coordinates in config/project.toml must sit on the features they name.
     ulm = PROJECT.city("ulm")
     hbf = next(p for p in ulm.points if p.id == "hbf")
-    stations = [(p, g) for p, g in read_geojsonl(layer_dir("ulm") / "stations.geojsonl") if p["name"] == "Ulm Hauptbahnhof"]
+    stations = [
+        (p, g) for p, g in read_geojsonl(layer_dir("ulm") / "stations.geojsonl") if p["name"] == "Ulm Hauptbahnhof"
+    ]
     assert stations and Point(hbf.lon, hbf.lat).distance(stations[0][1]) < 0.002

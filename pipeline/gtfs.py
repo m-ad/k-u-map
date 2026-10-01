@@ -84,7 +84,9 @@ def _named_colour(value: str) -> str | None:
     return c
 
 
-def _distinct_variants(geoms: list[LineString], extent: shapely.Polygon, tol_deg: float = 1e-4) -> shapely.MultiLineString | None:
+def _distinct_variants(
+    geoms: list[LineString], extent: shapely.Polygon, tol_deg: float = 1e-4
+) -> shapely.MultiLineString | None:
     """Clip shape variants and keep only the sections not already covered.
 
     ``union_all`` on hundreds of nearly coincident variants explodes in memory
@@ -177,7 +179,12 @@ def process_feed(
             continue
         lon, lat = float(r["stop_lon"]), float(r["stop_lat"])
         if w <= lon <= e and s <= lat <= n:
-            stops[r["stop_id"]] = {"name": r["stop_name"], "lon": lon, "lat": lat, "parent": r.get("parent_station", "")}
+            stops[r["stop_id"]] = {
+                "name": r["stop_name"],
+                "lon": lon,
+                "lat": lat,
+                "parent": r.get("parent_station", ""),
+            }
 
     served: dict[str, set[tuple[str, str]]] = defaultdict(set)  # stop -> {(route, network)}
     shape_trips: Counter[tuple[str, str, str]] = Counter()  # (route, shape, network) -> trips
@@ -196,7 +203,9 @@ def process_feed(
                     shape_trips[(route_id, shape_id, net)] += 1
 
     coords: dict[str, list[tuple[int, float, float]]] = defaultdict(list)
-    for shape_id, lat, lon, seq in _columns(zf, "shapes.txt", ("shape_id", "shape_pt_lat", "shape_pt_lon", "shape_pt_sequence")):
+    for shape_id, lat, lon, seq in _columns(
+        zf, "shapes.txt", ("shape_id", "shape_pt_lat", "shape_pt_lon", "shape_pt_sequence")
+    ):
         if shape_id in relevant_shapes:
             coords[shape_id].append((int(seq), float(lon), float(lat)))
     shapes = {}
@@ -224,7 +233,9 @@ def process_feed(
         colour = r["color"]
         source = "gtfs"
         if colour is None:
-            for osm_mode in {"tram": ("tram", "light_rail", "train"), "rail": ("train", "light_rail"), "bus": ("bus",)}[mode]:
+            for osm_mode in {"tram": ("tram", "light_rail", "train"), "rail": ("train", "light_rail"), "bus": ("bus",)}[
+                mode
+            ]:
                 c = osm_colours.get(osm_mode, {}).get(ref)
                 if c and _named_colour(c):
                     colour, source = _named_colour(c), "osm"

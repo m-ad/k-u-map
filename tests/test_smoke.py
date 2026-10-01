@@ -8,7 +8,8 @@ import pytest
 from playwright.sync_api import Page
 
 pytestmark = pytest.mark.site
-SHOTS = Path(__file__).resolve().parent.parent / "test-results"
+# Not test-results/: pytest-playwright clears that directory at session start.
+SHOTS = Path(__file__).resolve().parent.parent / "screenshots"
 
 
 def mpp_pair(page: Page) -> tuple[float, float]:
