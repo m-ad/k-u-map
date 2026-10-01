@@ -22,6 +22,7 @@ from pmtiles.reader import MmapSource, Reader, all_tiles
 from shapely.geometry import Point
 
 from pipeline.annotations import read_geojsonl
+from pipeline.annotations import to_utm as to_utm_geom
 from pipeline.config import data_dir, load_project
 from pipeline.frames import city_frame
 from pipeline.osm import layer_dir
@@ -215,3 +216,24 @@ def test_reference_points_are_inside_osm_features() -> None:
         (p, g) for p, g in read_geojsonl(layer_dir("ulm") / "stations.geojsonl") if p["name"] == "Ulm Hauptbahnhof"
     ]
     assert stations and Point(hbf.lon, hbf.lat).distance(stations[0][1]) < 0.002
+
+
+@pytest.mark.parametrize("city", PROJECT.cities, ids=lambda c: c.id)
+def test_tram_stations_lie_on_osm_tracks(city) -> None:
+    # Cross-checks two independent sources: GTFS tram/Stadtbahn stations must sit
+    # next to OSM track. This caught tram track tagged on street ways being dropped.
+    tracks = [
+        to_utm_geom(g)
+        for p, g in read_geojsonl(layer_dir(city.id) / "rail.geojsonl")
+        if p["class"] in ("tram", "rail", "tram_service")
+    ]
+    tree = shapely.STRtree(tracks)
+    view = shapely.box(*city_frame(PROJECT, city).frame_bbox_wgs84)
+    stations = [
+        to_utm_geom(g)
+        for p, g in read_geojsonl(layer_dir(city.id) / "transit_stops.geojsonl")
+        if "tram" in p["modes"] and view.contains(g)
+    ]
+    near = sum(1 for s in stations if tree.query(s, predicate="dwithin", distance=60.0).size > 0)
+    assert len(stations) >= 10
+    assert near / len(stations) > 0.95, f"{city.id}: only {near}/{len(stations)} tram stations near OSM track"

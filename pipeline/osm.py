@@ -187,13 +187,15 @@ def extract_city(pbf: Path, out_dir: Path, bbox: Bounds) -> Counter[str]:
                         w.write("roads", props, g)
                         for kind, sides in cycle_sides(t).items():
                             w.write("cycle", {"kind": kind, "sides": sides}, g)
-            elif "railway" in tags:
+            # Not elif: tram tracks are often tagged on the street way itself
+            # (highway=* + railway=tram), and must land in both layers.
+            if "railway" in tags:
                 cls = classify_rail(tags)
                 if cls is not None:
                     g = geom_of(wkb.create_linestring, o)
                     if g is not None:
                         w.write("rail", {"class": cls, **_flags(tags)}, g)
-            elif tags.get("waterway") in WATERWAY_LINES:
+            if tags.get("waterway") in WATERWAY_LINES:
                 g = geom_of(wkb.create_linestring, o)
                 if g is not None:
                     props = {"class": tags["waterway"]}
