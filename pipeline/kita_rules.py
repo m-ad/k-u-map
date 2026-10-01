@@ -1,0 +1,149 @@
+"""Rules deciding whether a childcare facility takes children aged 3-6 ("Ü3").
+
+Open data rarely states age groups: under 10 % of the OSM facilities near the
+centres carry ``min_age``/``max_age``, and Ulm/Neu-Ulm publish no open Kita
+dataset. The rules therefore combine explicit tags with German naming
+conventions and return a status with a human-readable reason:
+
+``confirmed``
+    Evidence that 3-6-year-olds are taken: age tags, ``nursery=no``,
+    ISCED level 02, or "Kindergarten" in the name (3-6 by definition).
+``probable``
+    A Kita-type or unclear name on ``amenity=kindergarten``; usually has 3-6
+    groups, but some are Krippen (0-3) only.
+``excluded``
+    Krippe/Krabbelstube, Tagespflege, Hort, Tagesgruppe, play areas, or
+    ``amenity=childcare`` without a kindergarten name.
+"""
+
+from __future__ import annotations
+
+import math
+import re
+from collections.abc import Mapping
+from typing import Any
+
+CONFIRMED = "confirmed"
+PROBABLE = "probable"
+EXCLUDED = "excluded"
+_RANK = {CONFIRMED: 2, PROBABLE: 1, EXCLUDED: 0}
+
+_KINDERGARTEN = re.compile(r"kindergarten", re.I)
+_EXCLUDE = (
+    (re.compile(r"krippe|krabbel", re.I), "Krippe (unter 3) laut Name"),
+    (re.compile(r"tagespflege|tagesmutter|tagesmütter|tagesvater", re.I), "Kindertagespflege laut Name"),
+    (re.compile(r"hort\b", re.I), "Hort (Schulkinder) laut Name"),
+    (re.compile(r"tagesgruppe", re.I), "Tagesgruppe (Jugendhilfe) laut Name"),
+    (re.compile(r"småland|smaland|spielparadies|indoorspielplatz", re.I), "Spielbereich, keine Kita"),
+)
+_KITA = re.compile(
+    r"\bkita\b|kindertagesst|kindertageseinr|tageseinrichtung für kinder|kinderhaus|kinderladen|familienzentrum",
+    re.I,
+)
+
+
+def _age(value: str | None) -> float | None:
+    if not value:
+        return None
+    try:
+        return float(value.split(";")[0].strip().replace(",", "."))
+    except ValueError:
+        return None
+
+
+def _fmt(v: float) -> str:
+    return f"{v:g}"
+
+
+def classify(tags: Mapping[str, str]) -> tuple[str, str]:
+    """Classify a facility as confirmed / probable / excluded Ü3 kindergarten.
+
+    Parameters
+    ----------
+    tags
+        OSM-style tags (``amenity``, ``name``, ``min_age``, ``max_age``,
+        ``nursery``, ``isced:level``).
+
+    Returns
+    -------
+    status, reason
+        Status constant and a short German explanation for the map popup.
+    """
+    lo, hi = _age(tags.get("min_age")), _age(tags.get("max_age"))
+    if lo is not None and lo >= 6:
+        return EXCLUDED, f"Alter ab {_fmt(lo)} (OSM): Schulkinder"
+    if hi is not None and hi <= 3:
+        return EXCLUDED, f"Alter bis {_fmt(hi)} (OSM): Krippe"
+    if lo is not None and lo >= 3:
+        return CONFIRMED, f"Alter ab {_fmt(lo)} (OSM)"
+    if lo is not None and hi is not None and hi > 3:
+        return CONFIRMED, f"Alter {_fmt(lo)}–{_fmt(hi)} (OSM)"
+
+    nursery = tags.get("nursery")
+    if nursery == "only":
+        return EXCLUDED, "nur Krippe (OSM nursery=only)"
+    if nursery == "no":
+        return CONFIRMED, "ohne Krippe (OSM nursery=no)"
+    levels = {v.strip() for v in tags.get("isced:level", "").split(";")}
+    if "02" in levels:
+        return CONFIRMED, "Elementarbereich (ISCED 02)"
+    if levels == {"01"}:
+        return EXCLUDED, "Krippenbereich (ISCED 01)"
+
+    name = tags.get("name", "") or ""
+    if _KINDERGARTEN.search(name):
+        return CONFIRMED, "„Kindergarten“ im Namen"
+    for pattern, reason in _EXCLUDE:
+        if pattern.search(name):
+            return EXCLUDED, reason
+    if tags.get("amenity") == "childcare":
+        # In German OSM data this tag is used for Krippen, Tagespflege and Horte.
+        return EXCLUDED, "amenity=childcare ohne Kindergarten-Namen"
+    if _KITA.search(name):
+        return PROBABLE, "Kita, Altersgruppen nicht belegt"
+    if name:
+        return PROBABLE, "Name ohne Hinweis auf Altersgruppen"
+    return PROBABLE, "ohne Namen, Altersgruppen nicht belegt"
+
+
+def _norm(name: str) -> str:
+    return re.sub(r"\W+", " ", name.lower()).strip()
+
+
+def dedupe(items: list[dict[str, Any]], same_name_m: float = 150.0, unnamed_m: float = 60.0) -> list[dict[str, Any]]:
+    """Merge duplicate mappings of one facility (node + building, split areas).
+
+    Items need ``name``, ``x``, ``y`` (metres) and ``status``. Two items are the
+    same facility if they share a normalised name within ``same_name_m``, or if
+    one is unnamed and lies within ``unnamed_m`` of the other. The merged entry
+    keeps the first position in the list, a name if either has one, and the
+    stronger status.
+
+    Returns
+    -------
+    list
+        Deduplicated items in input order.
+    """
+    kept: list[dict[str, Any]] = []
+    for item in items:
+        match = None
+        for i, k in enumerate(kept):
+            d = math.hypot(item["x"] - k["x"], item["y"] - k["y"])
+            named = bool(item["name"]) and bool(k["name"])
+            if named and _norm(item["name"]) == _norm(k["name"]) and d <= same_name_m:
+                match = i
+                break
+            if not named and d <= unnamed_m:
+                match = i
+                break
+        if match is None:
+            kept.append(item)
+            continue
+        k = kept[match]
+        better = item if _RANK[item["status"]] > _RANK[k["status"]] else k
+        merged = dict(better)
+        merged["x"], merged["y"] = k["x"], k["y"]
+        if not merged["name"]:
+            merged["name"] = item["name"] or k["name"]
+        kept[match] = merged
+    return kept
