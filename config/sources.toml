@@ -1,0 +1,90 @@
+# External data sources. Every source used on the map must be listed here with its
+# license; the site footer is generated from this file plus the download manifest.
+# Each URL was verified on 2026-10-01.
+
+[osm]
+name = "OpenStreetMap"
+license = "ODbL 1.0"
+license_url = "https://opendatacommons.org/licenses/odbl/1-0/"
+attribution = "© OpenStreetMap-Mitwirkende"
+homepage = "https://www.openstreetmap.org/copyright"
+# Geofabrik regional extracts. Neu-Ulm is in Bavaria, hence Schwaben.
+base_url = "https://download.geofabrik.de/europe/germany/"
+# Alternative used when download.geofabrik.de is unreachable: the official GWDG mirror
+# only carries the full Germany extract (~4.8 GB), which is then clipped locally.
+mirror_germany_url = "https://ftp5.gwdg.de/pub/misc/openstreetmap/download.geofabrik.de/germany-latest.osm.pbf"
+
+[osm.regions]
+ka = ["baden-wuerttemberg/karlsruhe-regbez"]
+ulm = ["baden-wuerttemberg/tuebingen-regbez", "bayern/schwaben"]
+
+[gtfs_swu]
+name = "SWU Verkehr GTFS"
+license = "CC0 1.0"
+license_url = "https://creativecommons.org/publicdomain/zero/1.0/"
+attribution = "Fahrplandaten: SWU Verkehr GmbH (CC0)"
+homepage = "https://www.swu.de/privatkunden/service/mobilitaet/gtfs-daten/"
+url = "https://gtfs.swu.de/daten/SWU.zip"
+# Hook for the joint Ulm/Neu-Ulm network starting 2027-01-01. When SWU publishes a
+# separate feed for it, put the URL here; the pipeline then offers "Netz ab 2027".
+# If the main feed itself switches to 2027 service, it is detected via calendar.txt.
+url_2027 = ""
+
+[gtfs_kvv]
+name = "KVV-Fahrplandaten mit Linienverlauf (NVBW)"
+license = "Datenlizenz Deutschland – Namensnennung 2.0; shapes.txt: ODbL 1.0"
+license_url = "https://www.govdata.de/dl-de/by-2-0"
+attribution = "Fahrplandaten: NVBW / KVV (dl-de/by-2-0), Linienverläufe © OpenStreetMap-Mitwirkende (ODbL)"
+homepage = "https://www.nvbw.de/open-data/fahrplandaten/fahrplandaten-mit-liniennetz"
+# KVV's own feed (https://projekte.kvv-efa.de/GTFS/google_transit.zip, CC0) has no
+# shapes.txt, so it cannot draw lines; the NVBW edition of the same timetable does.
+url = "https://www.nvbw.de/fileadmin/user_upload/service/open_data/fahrplandaten_mit_liniennetz/kvv.zip"
+
+[districts_ka]
+name = "Stadtteile Stadt Karlsruhe"
+license = "CC0 1.0"
+license_url = "https://creativecommons.org/publicdomain/zero/1.0/"
+attribution = "Stadtteilgrenzen: Stadt Karlsruhe, Transparenzportal (CC0)"
+homepage = "https://transparenz.karlsruhe.de/dataset/stadtteile"
+url = "https://transparenz.karlsruhe.de/dataset/8474ba52-f851-4f4b-b05a-1cba9bbd1f4d/resource/2a7fd644-bc67-477a-bb9e-cf88f076b7af/download/stadtteile.json"
+
+[dem_bw]
+name = "LGL Baden-Württemberg DGM1"
+license = "Datenlizenz Deutschland – Namensnennung 2.0"
+license_url = "https://www.govdata.de/dl-de/by-2-0"
+attribution = "Geländemodell: © LGL, www.lgl-bw.de (dl-de/by-2-0)"
+homepage = "https://opengeodata.lgl-bw.de/"
+# 2 km x 2 km tiles named by the south-west corner in km (odd easting, even northing).
+tile_url = "https://opengeodata.lgl-bw.de/data/dgm/dgm1_32_{e}_{n}_2_bw.zip"
+
+[dem_by]
+name = "Bayerische Vermessungsverwaltung DGM1"
+license = "CC BY 4.0"
+license_url = "https://creativecommons.org/licenses/by/4.0/"
+attribution = "Geländemodell: Bayerische Vermessungsverwaltung – www.geodaten.bayern.de (CC BY 4.0)"
+homepage = "https://geodaten.bayern.de/opengeodata/"
+# Metalink for Landkreis Neu-Ulm (AGS 09775); lists 1 km GeoTIFF tiles with SHA-256.
+metalink_url = "https://geodaten.bayern.de/odd/a/dgm/dgm1/meta/metalink/09775.meta4"
+
+[dem_copernicus]
+name = "Copernicus DEM GLO-30"
+license = "Copernicus DEM licence (free use with attribution)"
+# The AWS registry page states the licence and links the full text.
+license_url = "https://registry.opendata.aws/copernicus-dem/"
+attribution = "Gap fill: Copernicus DEM GLO-30 © DLR e.V. 2010-2014 und © Airbus Defence and Space GmbH 2014-2018, bereitgestellt unter COPERNICUS durch die EU und ESA"
+homepage = "https://registry.opendata.aws/copernicus-dem/"
+tile_url = "https://copernicus-dem-30m.s3.amazonaws.com/Copernicus_DSM_COG_10_N{lat:02d}_00_E{lon:03d}_00_DEM/Copernicus_DSM_COG_10_N{lat:02d}_00_E{lon:03d}_00_DEM.tif"
+
+[fonts]
+name = "Noto Sans (glyphs)"
+license = "SIL Open Font License 1.1"
+license_url = "https://openfontlicense.org/"
+attribution = "Schrift: Noto Sans (OFL)"
+homepage = "https://notofonts.github.io/"
+
+[software]
+name = "MapLibre GL JS, PMTiles"
+license = "BSD-3-Clause"
+license_url = "https://github.com/maplibre/maplibre-gl-js/blob/main/LICENSE.txt"
+attribution = "Kartendarstellung: MapLibre GL JS, PMTiles"
+homepage = "https://maplibre.org/"
