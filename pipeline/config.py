@@ -77,6 +77,7 @@ class Project:
     bike_speed_kmh: float
     cities: tuple[City, ...]
     sources: dict[str, dict[str, Any]] = field(default_factory=dict)
+    label_exclude: tuple[str, ...] = ()
 
     def city(self, city_id: str) -> City:
         """Return the city with the given id."""
@@ -131,4 +132,5 @@ def load_project(config_dir: Path = CONFIG_DIR) -> Project:
         bike_speed_kmh=float(raw["rings"]["bike_speed_kmh"]),
         cities=tuple(cities),
         sources=sources,
+        label_exclude=tuple(raw.get("labels", {}).get("exclude_substrings", [])),
     )

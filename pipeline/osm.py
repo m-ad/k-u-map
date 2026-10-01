@@ -31,6 +31,9 @@ log = logging.getLogger(__name__)
 
 PLACE_KINDS = {"city", "town", "village", "borough", "suburb", "quarter", "neighbourhood", "hamlet"}
 ADMIN_LEVELS = {"4", "6", "8", "9", "10", "11"}
+OSM_LAYERS = (
+    "admin", "border", "buildings", "cycle", "landuse", "places", "rail", "roads", "stations", "water", "waterway",
+)
 AREA_KEYS = ("building", "landuse", "natural", "leisure", "amenity", "waterway", "boundary", "place")
 
 
@@ -54,8 +57,9 @@ class LayerWriter:
         self.files: dict[str, IO[str]] = {}
         self.counts: Counter[str] = Counter()
         out_dir.mkdir(parents=True, exist_ok=True)
-        for old in out_dir.glob("*.geojsonl"):
-            old.unlink()
+        # Only remove this stage's own outputs; other stages share the directory.
+        for name in OSM_LAYERS:
+            (out_dir / f"{name}.geojsonl").unlink(missing_ok=True)
 
     def write(self, layer: str, props: dict[str, Any], geom: BaseGeometry) -> None:
         """Append a feature if it touches the data extent."""

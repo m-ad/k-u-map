@@ -26,3 +26,31 @@ def run_osm(project: Project, manifest: Manifest, *, osm_source: str) -> None:
     from . import osm
 
     osm.run(project)
+
+
+def run_gtfs(project: Project, manifest: Manifest, *, osm_source: str) -> None:
+    """Build transit line and station layers from the GTFS feeds."""
+    from . import gtfs
+
+    gtfs.run(project)
+
+
+def run_dem(project: Project, manifest: Manifest, *, osm_source: str) -> None:
+    """Mosaic the DGM tiles and derive contours."""
+    from . import dem
+
+    dem.run(project)
+
+
+def run_districts(project: Project, manifest: Manifest, *, osm_source: str) -> None:
+    """District boundaries, labels, reference points and distance rings."""
+    from . import annotations
+
+    annotations.run(project)
+
+
+def run_tiles(project: Project, manifest: Manifest, *, osm_source: str) -> None:
+    """Package all layers as PMTiles archives."""
+    from . import tiles
+
+    log.info("tile sizes (MB): %s", tiles.run(project))

@@ -83,3 +83,11 @@ secondary = [
   "Pfuhl",
   "Offenhausen",
 ]
+
+[labels]
+# OSM place=neighbourhood also tags single housing projects and dorms; these
+# substrings drop such names (case-sensitive) so real quarter names stay readable.
+exclude_substrings = [
+  "Carré", "Carrée", "Living", "Wohnanlage", "Kolleg", "Wohnheim", "YOUNIQ",
+  "Upper East", "Gemeinsamleben", "Ensemble",
+]

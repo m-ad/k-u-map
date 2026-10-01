@@ -73,8 +73,15 @@ def _colour(value: str | None) -> str | None:
 
 
 def _named_colour(value: str) -> str | None:
-    # OSM colour tags are usually hex but sometimes CSS names.
-    return _colour(value) or (value.lower() if value.isalpha() else None)
+    # OSM colour tags are usually hex but sometimes CSS names; near-white or grey
+    # values would vanish on the map, so they fall back to the palette.
+    c = _colour(value)
+    if c is None:
+        return None
+    r, g, b = (int(c[i : i + 2], 16) for i in (1, 3, 5))
+    if max(r, g, b) - min(r, g, b) < 24 and (r + g + b) / 3 > 150:
+        return None
+    return c
 
 
 def _distinct_variants(geoms: list[LineString], extent: shapely.Polygon, tol_deg: float = 1e-4) -> shapely.MultiLineString | None:

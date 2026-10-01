@@ -112,7 +112,7 @@ def classify_road(tags: Tags) -> str | None:
 
 
 def classify_rail(tags: Tags) -> str | None:
-    """Rail class: ``rail``, ``rail_service`` (yards, sidings), ``tram`` or ``None``.
+    """Rail class: ``rail``, ``tram``, ``rail_service``/``tram_service`` (yards, sidings) or ``None``.
 
     Parameters
     ----------
@@ -125,12 +125,12 @@ def classify_rail(tags: Tags) -> str | None:
         Rendering class.
     """
     r = tags.get("railway")
+    service = tags.get("service") in ("yard", "siding", "spur", "crossover")
     if r == "tram":
-        return "tram"
+        # Depot and siding tracks are not part of the passenger network.
+        return "tram_service" if service else "tram"
     if r in ("rail", "light_rail", "narrow_gauge", "subway"):
-        if tags.get("service") in ("yard", "siding", "spur", "crossover"):
-            return "rail_service"
-        return "rail"
+        return "rail_service" if service else "rail"
     return None
 
 

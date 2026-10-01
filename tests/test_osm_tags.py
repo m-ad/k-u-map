@@ -79,6 +79,7 @@ def test_classify_road(tags: dict[str, str], expected: str | None) -> None:
         ({"railway": "rail", "service": "yard"}, "rail_service"),
         ({"railway": "light_rail"}, "rail"),
         ({"railway": "tram"}, "tram"),
+        ({"railway": "tram", "service": "yard"}, "tram_service"),
         ({"railway": "abandoned"}, None),
         ({"railway": "disused"}, None),
         ({"railway": "platform"}, None),
