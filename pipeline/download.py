@@ -245,6 +245,7 @@ def download_osm(project: Project, manifest: Manifest, mode: str = "geofabrik") 
     root = data_dir()
     raw_dir = root / "cache" / "osm"
     out: dict[str, Path] = {}
+    stamps: dict[str, str | None] = {}
     pad = 0.01  # degrees; keeps features that straddle the rectangle edge intact
     for city in project.cities:
         w, s, e, n = city_frame(project, city).data_bbox_wgs84
@@ -266,6 +267,9 @@ def download_osm(project: Project, manifest: Manifest, mode: str = "geofabrik") 
                 part = dest.with_name(f"{city.id}.{region.replace('/', '_')}.osm.pbf")
                 _osmium_extract(pbf, bbox, part)
                 parts.append(part)
+                ts = osm_header_timestamp(pbf)
+                # The oldest region extract bounds the data date of the merged file.
+                stamps[city.id] = min(filter(None, (stamps.get(city.id), ts)), default=None)
             if len(parts) == 1:
                 parts[0].replace(dest)
             else:
@@ -289,7 +293,10 @@ def download_osm(project: Project, manifest: Manifest, mode: str = "geofabrik") 
                         )
                     )
             _osmium_extract(pbf, bbox, dest)
+            stamps[city.id] = osm_header_timestamp(pbf)
         out[city.id] = dest
+    # osmium extract drops the replication timestamp, so keep it for the footer.
+    (root / "osm" / "timestamps.json").write_text(json.dumps(stamps, indent=1))
     return out
 
 

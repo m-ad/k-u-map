@@ -1,0 +1,11 @@
+{
+  "name": "k-u-map-site",
+  "private": true,
+  "description": "Runtime libraries vendored into dist/ by the site build (no CDN at runtime).",
+  "license": "MIT",
+  "dependencies": {
+    "@fontsource/noto-sans": "5.3.0",
+    "maplibre-gl": "6.11.2",
+    "pmtiles": "4.5.0"
+  }
+}

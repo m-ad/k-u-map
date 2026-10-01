@@ -61,3 +61,10 @@ def run_metrics(project: Project, manifest: Manifest, *, osm_source: str) -> Non
     from . import metrics
 
     metrics.run(project)
+
+
+def run_site(project: Project, manifest: Manifest, *, osm_source: str) -> None:
+    """Assemble the static site in ``dist/``."""
+    from . import site
+
+    site.run(project, manifest)

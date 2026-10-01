@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="color-scheme" content="light dark">
+  <meta name="description" content="Karlsruhe und Ulm/Neu-Ulm nebeneinander im exakt gleichen Maßstab: Bebauung, Relief, Radinfrastruktur, Tram und Bus.">
+  <title>Karlsruhe ↔ Ulm im gleichen Maßstab</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='14' height='28' x='1' y='2' rx='3' fill='%23b45309'/%3E%3Crect width='14' height='28' x='17' y='2' rx='3' fill='%230f766e'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="vendor/maplibre/maplibre-gl.css">
+  <link rel="stylesheet" href="css/app.css">
+  <script src="vendor/pmtiles/pmtiles.js" defer></script>
+  <script type="module" src="js/app.js"></script>
+</head>
+<body>
+  <header class="top">
+    <div class="title">
+      <h1>Karlsruhe <span aria-hidden="true">↔</span><span class="sr-only">und</span> Ulm <small>im gleichen Maßstab</small></h1>
+      <p class="readout" id="readout" aria-live="polite">Lade Karten …</p>
+    </div>
+    <div class="actions">
+      <button type="button" class="btn" id="reset" title="Ausgangsansicht 12 × 10 km">Ausgangsansicht</button>
+      <a class="btn" href="#vergleich">Vergleich ↓</a>
+    </div>
+  </header>
+
+  <nav class="toolbar" aria-label="Ebenen">
+    <div class="chips" id="chips" role="group" aria-label="Ebenen ein-/ausblenden"></div>
+    <div class="chips secondary" role="group" aria-label="Optionen">
+      <button type="button" class="chip toggle" id="couple" aria-pressed="false" title="Verschiebt beide Karten um dieselbe Strecke in Metern">Verschieben koppeln</button>
+      <span id="network-switch" class="network" hidden></span>
+    </div>
+  </nav>
+
+  <main class="panels">
+    <section class="panel" data-city="ka" aria-label="Karte Karlsruhe">
+      <h2 class="panel-title"><span class="dot"></span>Karlsruhe</h2>
+      <div class="map" id="map-ka"></div>
+    </section>
+    <section class="panel" data-city="ulm" aria-label="Karte Ulm und Neu-Ulm">
+      <h2 class="panel-title"><span class="dot"></span>Ulm / Neu-Ulm</h2>
+      <div class="map" id="map-ulm"></div>
+    </section>
+  </main>
+
+  <section class="info">
+    <details class="legend" open>
+      <summary>Legende</summary>
+      <div id="legend" class="legend-grid"></div>
+      <p class="note" id="network-note"></p>
+    </details>
+
+    <section id="vergleich" class="compare" aria-labelledby="compare-title">
+      <div class="compare-head">
+        <h2 id="compare-title">Vergleich</h2>
+        <div class="radius-tabs" role="tablist" aria-label="Radius" id="radius-tabs"></div>
+      </div>
+      <p class="note" id="compare-center"></p>
+      <div id="compare-table" class="compare-table" role="table" aria-label="Kennzahlen im Vergleich"></div>
+      <details class="method">
+        <summary>Methodik</summary>
+        <ul id="method-list"></ul>
+      </details>
+    </section>
+
+    <footer class="sources">
+      <h2>Quellen &amp; Lizenzen</h2>
+      <ul id="sources"></ul>
+      <p class="note" id="build-info"></p>
+    </footer>
+  </section>
+</body>
+</html>

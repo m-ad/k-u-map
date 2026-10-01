@@ -21,7 +21,7 @@ from shapely.geometry.base import BaseGeometry
 from shapely.ops import polylabel, transform
 
 from .config import City, Project, data_dir
-from .frames import TO_UTM, TO_WGS84, bike_minutes, city_frame, geodesic_ring
+from .frames import GEOD, TO_UTM, TO_WGS84, bike_minutes, city_frame, geodesic_ring
 from .osm import feature_line, layer_dir
 
 log = logging.getLogger(__name__)
@@ -66,13 +66,20 @@ def to_wgs84(g: BaseGeometry) -> BaseGeometry:
     return transform(TO_WGS84.transform, g)
 
 
-def label_point(g: BaseGeometry) -> Point:
+def label_point(g: BaseGeometry, avoid: list[Point] | None = None, avoid_m: float = 350.0) -> Point:
     """Pole of inaccessibility of the largest part, computed in metres.
 
     Unlike the centroid, this always lies inside the polygon (also for
-    crescent-shaped districts along a river).
+    crescent-shaped districts along a river). Areas within ``avoid_m`` of the
+    ``avoid`` points (reference markers with their own labels) are excluded when
+    enough of the polygon remains, so district names do not compete with them.
     """
     utm = to_utm(g)
+    if avoid:
+        holes = shapely.union_all([to_utm(p).buffer(avoid_m) for p in avoid])
+        rest = utm.difference(holes)
+        if not rest.is_empty and rest.area > 0.3 * utm.area:
+            utm = rest
     parts = list(getattr(utm, "geoms", [utm]))
     biggest = max(parts, key=lambda p: p.area)
     return to_wgs84(polylabel(biggest, tolerance=5.0))
@@ -171,8 +178,9 @@ def build_city(project: Project, city: City) -> dict[str, int]:
     labels: list[tuple[dict[str, Any], Point]] = []
     admin_names = {p["name"] for p, _ in read_geojsonl(d_dir / "admin.geojsonl")}
     district_names = {d.name for d in districts} | {d.label for d in districts} | admin_names
+    ref_pts = [Point(p.lon, p.lat) for p in city.points]
     for d in districts:
-        pt = label_point(d.geom)
+        pt = label_point(d.geom, avoid=ref_pts)
         area_km2 = to_utm(d.geom).area / 1e6
         labels.append(
             (
@@ -235,9 +243,13 @@ def build_city(project: Project, city: City) -> dict[str, int]:
             minutes = bike_minutes(r, project.bike_speed_kmh)
             props = {
                 "radius_km": r / 1000,
-                "label": f"{r / 1000:g} km · ≈ {minutes} min Rad (Luftlinie)",
+                "label": f"{r / 1000:g} km Luftlinie · ca. {minutes} min Rad",
+                "short": f"{r / 1000:g} km · ca. {minutes} min",
             }
             fh.write(feature_line(props, LineString(geodesic_ring(c.lon, c.lat, r))))
+            # Label anchor on the ring towards north-east, away from the dense centre.
+            lon, lat, _ = GEOD.fwd(c.lon, c.lat, 40.0, r)
+            fh.write(feature_line(props, Point(lon, lat)))
     counts["rings"] = len(project.ring_radii_m)
     return counts
 
