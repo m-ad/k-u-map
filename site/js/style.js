@@ -26,6 +26,7 @@ const PALETTES = {
     contour: '#9b7650', contourOpacity: 0.55, contourLabel: '#76573a',
     hillshade: { shadow: '#3d3220', highlight: '#ffffff', accent: '#4a3f2a', exaggeration: 0.45 },
     stop: '#ffffff', stopStroke: '#2b2824', lineCasing: '#ffffff',
+    kita: '#a21caf',
   },
   dark: {
     bg: '#15171a',
@@ -51,6 +52,7 @@ const PALETTES = {
     contour: '#c9a47c', contourOpacity: 0.4, contourLabel: '#d8b48c',
     hillshade: { shadow: '#000000', highlight: '#c8c8c8', accent: '#1a1a1a', exaggeration: 0.5 },
     stop: '#15171a', stopStroke: '#e7e5e4', lineCasing: '#15171a',
+    kita: '#f0abfc',
   },
 };
 
@@ -347,6 +349,16 @@ export function buildStyle({ theme, city, visible, network, url }) {
     },
   });
 
+  // ---- Ü3 kindergartens within 2 km of the ring centre: filled = confirmed, hollow = not confirmed
+  add('kitas', {
+    id: 'kita-dots', type: 'circle', source: 'kitas', minzoom: 10,
+    paint: {
+      'circle-radius': z([[10, 2.2], [13, 3.5], [16, 6]]),
+      'circle-color': ['match', ['get', 'status'], 'confirmed', p.kita, p.halo],
+      'circle-stroke-color': p.kita, 'circle-stroke-width': z([[10, 1], [16, 2]]),
+    },
+  });
+
   // ---- labels (later layers win label collisions, so the most important come last)
   const halo = { 'text-halo-color': p.halo, 'text-halo-width': 1.4, 'text-halo-blur': 0.3 };
   add('names', {
@@ -393,6 +405,14 @@ export function buildStyle({ theme, city, visible, network, url }) {
       'text-variable-anchor': ['top', 'bottom', 'left', 'right'], 'text-radial-offset': 0.7, 'text-max-width': 7,
     },
     paint: { 'text-color': p.quarter, ...halo },
+  });
+  add('kitas', {
+    id: 'kita-label', type: 'symbol', source: 'kitas', minzoom: 14, filter: ['has', 'name'],
+    layout: {
+      'text-field': ['get', 'name'], 'text-font': FONTS.regular, 'text-size': 10, 'text-max-width': 8,
+      'text-variable-anchor': ['top', 'bottom', 'left', 'right'], 'text-radial-offset': 0.8,
+    },
+    paint: { 'text-color': p.kita, ...halo },
   });
   add('rings', {
     id: 'ring-label', type: 'symbol', source: 'rings', filter: ['==', ['geometry-type'], 'Point'],
@@ -511,6 +531,7 @@ export function buildStyle({ theme, city, visible, network, url }) {
       labels: { type: 'geojson', data: url(`data/${city}/labels.geojson`) },
       refpoints: { type: 'geojson', data: url(`data/${city}/refpoints.geojson`) },
       rings: { type: 'geojson', data: url(`data/${city}/rings.geojson`) },
+      kitas: { type: 'geojson', data: url(`data/${city}/kitas.geojson`) },
     },
     layers: L,
   };
