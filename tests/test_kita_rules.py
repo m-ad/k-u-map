@@ -110,7 +110,8 @@ def test_merge_sources_upgrades_matched_osm_items_and_adds_missing_ones() -> Non
     ]
     out = merge_sources(osm, official, max_m=80.0)
     assert [(i["name"], i["x"], i["status"], i["source"]) for i in out] == [
-        ("Villa Bambini", 0.0, CONFIRMED, "OSM + Stadt"),
+        # The stronger evidence supplies status, reason and name.
+        ("Kinderhaus Villa Bambini", 0.0, CONFIRMED, "OSM + Stadt"),
         ("Kita Sonne", 1000.0, PROBABLE, "OSM"),
         ("Kindergarten Mond", 2000.0, CONFIRMED, "OSM + Stadt"),
         ("Kindergarten Neu", 3000.0, CONFIRMED, "Stadt"),
@@ -122,4 +123,39 @@ def test_merge_sources_matches_each_osm_item_once_to_the_nearest() -> None:
     osm = [_item("A", 0.0, PROBABLE, "OSM")]
     official = [_item("far", 60.0, CONFIRMED, "Stadt"), _item("near", 10.0, CONFIRMED, "Stadt")]
     out = merge_sources(osm, official, max_m=80.0)
-    assert [(i["name"], i["source"]) for i in out] == [("A", "OSM + Stadt"), ("far", "Stadt")]
+    assert [(i["name"], i["source"]) for i in out] == [("near", "OSM + Stadt"), ("far", "Stadt")]
+
+
+def test_dedupe_merges_a_name_contained_in_a_nearby_name() -> None:
+    items = [
+        {"name": "Drachenhöhle", "x": 0.0, "y": 0.0, "status": PROBABLE},  # node inside the area below
+        {"name": "Kita Drachenhöhle", "x": 22.0, "y": 0.0, "status": PROBABLE},
+        # Different facility types of one parish, mapped as separate buildings: kept.
+        {"name": "Herz-Jesu Kindergarten", "x": 1000.0, "y": 0.0, "status": CONFIRMED},
+        {"name": "Herz-Jesu Kindertagesstätte", "x": 1032.0, "y": 0.0, "status": PROBABLE},
+        # Containment alone is not enough at a distance.
+        {"name": "Kindergarten Drachenhöhle", "x": 500.0, "y": 0.0, "status": CONFIRMED},
+    ]
+    out = dedupe(items)
+    assert [i["name"] for i in out] == [
+        "Kita Drachenhöhle",
+        "Herz-Jesu Kindergarten",
+        "Herz-Jesu Kindertagesstätte",
+        "Kindergarten Drachenhöhle",
+    ]
+
+
+def test_dedupe_takes_the_name_with_the_evidence() -> None:
+    # The Krippe section of a Kita: the merged point must not carry the Krippe's name.
+    items = [
+        {"name": "Krippe der Kita Zachäus", "x": 0.0, "y": 0.0, "status": EXCLUDED, "reason": "Krippe"},
+        {"name": "Kita Zachäus", "x": 20.0, "y": 0.0, "status": PROBABLE, "reason": "Kita"},
+    ]
+    assert [(i["name"], i["status"]) for i in dedupe(items)] == [("Kita Zachäus", PROBABLE)]
+    # An unnamed node next to a named Krippe is that Krippe, not an unclear Kita.
+    unnamed = classify(kg(None))[1]
+    items = [
+        {"name": "", "x": 0.0, "y": 0.0, "status": PROBABLE, "reason": unnamed},
+        {"name": "Krippe Mond", "x": 15.0, "y": 0.0, "status": EXCLUDED, "reason": "Krippe"},
+    ]
+    assert [(i["name"], i["status"]) for i in dedupe(items)] == [("Krippe Mond", EXCLUDED)]

@@ -71,7 +71,8 @@ jobs:
 
       # Raw OSM/GTFS downloads and the manifest. The pipeline re-downloads files
       # older than their max age (OSM 7 days, GTFS 3 days), so a restored cache
-      # only saves traffic within that window.
+      # only saves traffic within that window. The optional Karlsruhe Kita list
+      # falls back to its cached copy when the geoportal does not answer.
       - name: Cache raw downloads
         uses: actions/cache@v4
         with:
@@ -79,6 +80,7 @@ jobs:
             data/cache/osm
             data/cache/gtfs
             data/cache/districts
+            data/cache/kitas
             data/manifest.json
           key: raw-${{ github.run_id }}
           restore-keys: raw-

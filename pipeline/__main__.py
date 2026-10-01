@@ -1,7 +1,7 @@
 """Command-line entry point: ``uv run python -m pipeline <stage>``.
 
-Stages run in order for ``build``: download -> osm -> gtfs -> districts -> dem ->
-tiles -> metrics -> site. Each stage can also be run on its own.
+Stages run in order for ``build``: download -> osm -> gtfs -> districts -> kitas ->
+dem -> tiles -> metrics -> site. Each stage can also be run on its own.
 """
 
 from __future__ import annotations
@@ -16,7 +16,7 @@ from collections.abc import Callable
 from .config import data_dir, load_project
 from .download import Manifest
 
-STAGES = ("download", "osm", "gtfs", "districts", "dem", "tiles", "metrics", "site")
+STAGES = ("download", "osm", "gtfs", "districts", "kitas", "dem", "tiles", "metrics", "site")
 
 
 def _stage_fn(name: str) -> Callable[..., None]:

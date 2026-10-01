@@ -15,6 +15,7 @@ def run_download(project: Project, manifest: Manifest, *, osm_source: str) -> No
     """Fetch every external input (OSM, GTFS, district boundaries, DEM)."""
     download.download_gtfs(project, manifest)
     download.download_districts(project, manifest)
+    download.download_kitas_ka(project, manifest)
     manifest.save()
     download.download_osm(project, manifest, mode=osm_source)
     manifest.save()
@@ -57,6 +58,13 @@ def run_districts(project: Project, manifest: Manifest, *, osm_source: str) -> N
     from . import annotations
 
     annotations.run(project)
+
+
+def run_kitas(project: Project, manifest: Manifest, *, osm_source: str) -> None:
+    """Ü3 kindergartens within 2 km of each ring centre."""
+    from . import kitas
+
+    kitas.run(project)
 
 
 def run_tiles(project: Project, manifest: Manifest, *, osm_source: str) -> None:

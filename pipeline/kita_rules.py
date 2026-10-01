@@ -1,8 +1,8 @@
 """Rules deciding whether a childcare facility takes children aged 3-6 ("Ü3").
 
-Open data rarely states age groups: under 10 % of the OSM facilities near the
-centres carry ``min_age``/``max_age``, and Ulm/Neu-Ulm publish no open Kita
-dataset. The rules therefore combine explicit tags with German naming
+Open data rarely states age groups: about 5 % of the OSM childcare facilities
+in the map extents carry ``min_age``/``max_age`` (2026), and Ulm/Neu-Ulm publish
+no open Kita dataset. The rules therefore combine explicit tags with German naming
 conventions and return a status with a human-readable reason:
 
 ``confirmed``
@@ -27,6 +27,7 @@ CONFIRMED = "confirmed"
 PROBABLE = "probable"
 EXCLUDED = "excluded"
 _RANK = {CONFIRMED: 2, PROBABLE: 1, EXCLUDED: 0}
+_UNNAMED = "ohne Namen, Altersgruppen nicht belegt"
 
 _KINDERGARTEN = re.compile(r"kindergarten", re.I)
 _EXCLUDE = (
@@ -103,21 +104,29 @@ def classify(tags: Mapping[str, str]) -> tuple[str, str]:
         return PROBABLE, "Kita, Altersgruppen nicht belegt"
     if name:
         return PROBABLE, "Name ohne Hinweis auf Altersgruppen"
-    return PROBABLE, "ohne Namen, Altersgruppen nicht belegt"
+    return PROBABLE, _UNNAMED
 
 
 def _norm(name: str) -> str:
     return re.sub(r"\W+", " ", name.lower()).strip()
 
 
-def dedupe(items: list[dict[str, Any]], same_name_m: float = 150.0, unnamed_m: float = 60.0) -> list[dict[str, Any]]:
+def _evidence(item: Mapping[str, Any]) -> int:
+    # "probable" is only the default for an untagged, unnamed facility, not evidence.
+    return -1 if item.get("reason") == _UNNAMED else _RANK[item["status"]]
+
+
+def dedupe(items: list[dict[str, Any]], same_name_m: float = 150.0, near_m: float = 60.0) -> list[dict[str, Any]]:
     """Merge duplicate mappings of one facility (node + building, split areas).
 
     Items need ``name``, ``x``, ``y`` (metres) and ``status``. Two items are the
-    same facility if they share a normalised name within ``same_name_m``, or if
-    one is unnamed and lies within ``unnamed_m`` of the other. The merged entry
-    keeps the first position in the list, a name if either has one, and the
-    stronger status.
+    same facility if they share a normalised name within ``same_name_m``, or lie
+    within ``near_m`` and one is unnamed or its name is contained in the other
+    ("Drachenhöhle" / "Kita Drachenhöhle"). Different names that merely share a
+    stem ("Herz-Jesu Kindergarten" / "Herz-Jesu Kindertagesstätte") are kept:
+    mappers use them for separate facilities. The merged entry keeps the first
+    position in the list; status, reason and name come from the item with the
+    stronger evidence (on a tie, the longer name is kept).
 
     Returns
     -------
@@ -127,23 +136,26 @@ def dedupe(items: list[dict[str, Any]], same_name_m: float = 150.0, unnamed_m: f
     kept: list[dict[str, Any]] = []
     for item in items:
         match = None
+        a = _norm(item["name"])
         for i, k in enumerate(kept):
             d = math.hypot(item["x"] - k["x"], item["y"] - k["y"])
-            named = bool(item["name"]) and bool(k["name"])
-            if named and _norm(item["name"]) == _norm(k["name"]) and d <= same_name_m:
+            b = _norm(k["name"])
+            if a and a == b and d <= same_name_m:
                 match = i
                 break
-            if not named and d <= unnamed_m:
+            if d <= near_m and (not a or not b or f" {a} " in f" {b} " or f" {b} " in f" {a} "):
                 match = i
                 break
         if match is None:
             kept.append(item)
             continue
         k = kept[match]
-        better = item if _RANK[item["status"]] > _RANK[k["status"]] else k
-        merged = dict(better)
+        ei, ek = _evidence(item), _evidence(k)
+        merged = dict(item if ei > ek else k)
         merged["x"], merged["y"] = k["x"], k["y"]
-        if not merged["name"]:
+        if ei == ek:
+            merged["name"] = max(k["name"], item["name"], key=len)
+        elif not merged["name"]:
             merged["name"] = item["name"] or k["name"]
         kept[match] = merged
     return kept
@@ -157,8 +169,9 @@ def merge_sources(
     Names differ between the sources ("Kath. Kindergarten St. Peter" vs
     "Kindergarten St. Peter und Paul"), so items are paired by distance only:
     closest pairs first, each item used at most once. A pair keeps the OSM
-    position and name, takes the stronger status with its reason and lists
-    both sources; unpaired official items are appended.
+    position, takes status, reason and name from the item with the stronger
+    evidence (OSM on a tie) and lists both sources; unpaired official items
+    are appended.
 
     Parameters
     ----------
@@ -176,9 +189,7 @@ def merge_sources(
         official items.
     """
     pairs = sorted(
-        (math.hypot(o["x"] - f["x"], o["y"] - f["y"]), i, j)
-        for i, o in enumerate(osm)
-        for j, f in enumerate(official)
+        (math.hypot(o["x"] - f["x"], o["y"] - f["y"]), i, j) for i, o in enumerate(osm) for j, f in enumerate(official)
     )
     match: dict[int, int] = {}
     used: set[int] = set()
@@ -199,7 +210,7 @@ def merge_sources(
         out.append(
             {
                 **o,
-                "name": o["name"] or f["name"],
+                "name": better["name"] or o["name"] or f["name"],
                 "status": better["status"],
                 "reason": better["reason"],
                 "source": f"{o['source']} + {f['source']}",
