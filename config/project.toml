@@ -1,0 +1,93 @@
+# Project configuration: frames, reference points, rings and district highlighting.
+# Coordinates are WGS84 as [lon, lat]. All metric work happens in ETRS89 / UTM 32N
+# (EPSG:25832), which covers both cities.
+
+[frame]
+# Default view: the same ground rectangle in both panels.
+width_km = 12.0
+height_km = 10.0
+# Data is processed this far beyond each frame edge so the user can zoom out a bit.
+margin_km = 4.0
+
+[rings]
+radii_km = [2.0, 4.0, 6.0]
+# Bike speed for the ring labels (straight-line distance, not routed).
+bike_speed_kmh = 15.0
+
+[[cities]]
+id = "ka"
+name = "Karlsruhe"
+center = [8.418, 49.006]
+ring_center = "marktplatz"
+
+  [[cities.points]]
+  id = "marktplatz"
+  name = "Marktplatz"
+  kind = "landmark"
+  coord = [8.40388, 49.00895]
+
+  [[cities.points]]
+  id = "hbf"
+  name = "Karlsruhe Hbf"
+  kind = "station"
+  coord = [8.40206, 48.99390]
+
+  # Centroid of OSM "Zoologischer Stadtgarten" (tourism=zoo).
+  [[cities.points]]
+  id = "zoo"
+  name = "Zoo Karlsruhe"
+  kind = "zoo"
+  coord = [8.40088, 48.99852]
+
+[[cities]]
+id = "ulm"
+name = "Ulm / Neu-Ulm"
+center = [10.000, 48.400]
+ring_center = "muenster"
+
+  # Centroid of the OSM building outline of the Ulmer Münster.
+  [[cities.points]]
+  id = "muenster"
+  name = "Ulmer Münster"
+  kind = "landmark"
+  coord = [9.99245, 48.39852]
+
+  [[cities.points]]
+  id = "hbf"
+  name = "Ulm Hbf"
+  kind = "station"
+  coord = [9.98260, 48.39942]
+
+  # OSM calls it "Tiergarten Ulm" (Friedrichsau); centroid of the tourism=zoo area.
+  [[cities.points]]
+  id = "tierpark"
+  name = "Tiergarten Ulm"
+  kind = "zoo"
+  coord = [10.01137, 48.40986]
+
+# District highlighting. Names must match the label names produced by the pipeline
+# (official names for Karlsruhe, OSM names for Ulm/Neu-Ulm with a municipality suffix
+# where a name exists in both towns).
+[districts.ka]
+primary = ["Oststadt", "Innenstadt-Ost", "Durlach", "Südstadt"]
+secondary = []
+
+[districts.ulm]
+primary = ["Söflingen", "Kuhberg", "Oststadt"]
+secondary = [
+  "Mitte",
+  "Fischerviertel",
+  "Michelsberg",
+  "Weststadt",
+  "Stadtmitte (Neu-Ulm)",
+  "Pfuhl",
+  "Offenhausen",
+]
+
+[labels]
+# OSM place=neighbourhood also tags single housing projects and dorms; these
+# substrings drop such names (case-sensitive) so real quarter names stay readable.
+exclude_substrings = [
+  "Carré", "Carrée", "Living", "Wohnanlage", "Kolleg", "Wohnheim", "YOUNIQ",
+  "Upper East", "Gemeinsamleben", "Ensemble",
+]

@@ -1,0 +1,10 @@
+# Raw downloads and intermediate products are rebuilt by the pipeline.
+/data/
+/dist/
+/test-results/
+/screenshots/
+/node_modules/
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
