@@ -28,6 +28,11 @@ log = logging.getLogger(__name__)
 TRAM_CORRIDOR_M = 8.0
 
 
+def kita_radius_km() -> float:
+    """Radius the kitas stage collected facilities in (read from its output)."""
+    return float(json.loads((data_dir() / "kitas_info.json").read_text())["radius_km"])
+
+
 def circle_utm(city: City, radius_m: float) -> Polygon:
     """Geodesic circle around the city's ring centre, in UTM metres."""
     c = city.ring_center
@@ -83,6 +88,8 @@ def city_metrics(project: Project, city: City) -> dict:
     ctree = shapely.STRtree([g for _, _, g in cycle])
     stops = [(p, to_utm(g)) for p, g in read_geojsonl(d / "transit_stops.geojsonl")]
     lines = [(p, to_utm(g)) for p, g in read_geojsonl(d / "transit_lines.geojsonl")]
+    kitas = [(p, to_utm(g)) for p, g in read_geojsonl(d / "kitas.geojsonl")]
+    kita_radius_m = kita_radius_km() * 1000
 
     with rasterio.open(data_dir() / "dem" / f"{city.id}_5m.tif") as dem:
         elev = dem.read(1)
@@ -133,6 +140,13 @@ def city_metrics(project: Project, city: City) -> dict:
             for net in sorted({p["network"] for p, _ in lines})
         }
 
+        # Kitas are collected only within the innermost ring (see kitas.py).
+        if r == kita_radius_m:
+            res["kitas"] = {
+                status: sum(1 for p, g in kitas if p["status"] == status and circle.contains(g))
+                for status in ("confirmed", "probable")
+            }
+
         mask = rasterio.features.geometry_mask([circle], out_shape=elev.shape, transform=dem_transform, invert=True)
         official = mask & (source != 3) & np.isfinite(elev)
         vals = elev[official]
@@ -165,6 +179,9 @@ def run(project: Project) -> dict:
             f"{TRAM_CORRIDOR_M:g} m corridor around longer tracks, so double track counts once",
             "cycle_km": "OSM ways by category; road-side lanes/tracks counted per side",
             "stops": "GTFS stations (platforms merged by parent station or name) served by tram/bus lines",
+            "kitas": f"within {kita_radius_km():g} km only: OSM amenity=kindergarten/childcare, in Karlsruhe "
+            "cross-checked with the city's POI list; 'confirmed' = age tags, 'Kindergarten' in the name or the "
+            "city's Kindergarten category; Krippen, Tagespflege and Horte excluded",
             "elevation": "official DGM1 (LGL BW, LDBV BY) resampled to 5 m; Copernicus fill excluded",
         },
         "cities": {},

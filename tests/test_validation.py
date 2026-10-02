@@ -41,6 +41,8 @@ MIN_FEATURES = {
     "waterway": 200,
     "rail": 200,
     "cycle": 500,
+    "childcare": 100,
+    "kitas": 15,
     "border": 1,
     "admin": 10,
     "places": 20,
@@ -237,3 +239,31 @@ def test_tram_stations_lie_on_osm_tracks(city) -> None:
     near = sum(1 for s in stations if tree.query(s, predicate="dwithin", distance=60.0).size > 0)
     assert len(stations) >= 10
     assert near / len(stations) > 0.95, f"{city.id}: only {near}/{len(stations)} tram stations near OSM track"
+
+
+@pytest.mark.parametrize("city", PROJECT.cities, ids=lambda c: c.id)
+def test_kitas_lie_within_the_radius_and_are_ue3(city) -> None:
+    from pyproj import Geod
+
+    info = json.loads((data_dir() / "kitas_info.json").read_text())
+    radius_m = info["radius_km"] * 1000
+    c = city.ring_center
+    geod = Geod(ellps="GRS80")
+    feats = list(read_geojsonl(layer_dir(city.id) / "kitas.geojsonl"))
+    for p, g in feats:
+        assert geod.inv(c.lon, c.lat, g.x, g.y)[2] <= radius_m + 1, p
+        assert p["status"] in ("confirmed", "probable"), p
+    # Unconfirmed entries named as Krippe/Hort/Tagespflege must not slip through
+    # (confirmed ones may be "Kinderkrippe und Kindergarten ...").
+    names = " ".join(p.get("name", "") for p, _ in feats if p["status"] == "probable").lower()
+    for word in ("krippe", "tagespflege", "hort "):
+        assert word not in names
+    assert sum(p["status"] == "confirmed" for p, _ in feats) >= 5
+
+
+def test_karlsruhe_official_kita_list_is_plausible_when_used() -> None:
+    ka = json.loads((data_dir() / "kitas_info.json").read_text())["cities"]["ka"]
+    if not ka["official_list"]:
+        pytest.skip("Karlsruhe Kita list not reachable for this build; OSM only")
+    # Catches a wrong CRS or an empty answer: the city lists dozens within 2 km.
+    assert ka["official_in_radius"] >= 10

@@ -15,6 +15,7 @@ const GROUPS = [
   { id: 'tram', label: 'Tram/Bahn', on: true },
   { id: 'bus', label: 'Bus', on: false },
   { id: 'rings', label: 'Radien', on: true },
+  { id: 'kitas', label: 'Kitas Ü3', on: true },
   { id: 'districts', label: 'Stadtteilgrenzen', on: false },
   { id: 'names', label: 'Namen', on: true },
 ];
@@ -182,7 +183,7 @@ function createMap(city) {
   map.addControl(new maplibregl.ScaleControl({ maxWidth: 120, unit: 'metric' }), 'bottom-left');
   map.on('move', () => syncFrom(city));
   map.on('click', (e) => showPopup(map, e));
-  for (const layer of ['tram-lines', 'bus-lines', 'tram-stops', 'bus-stops', 'refpoints']) {
+  for (const layer of ['tram-lines', 'bus-lines', 'tram-stops', 'bus-stops', 'refpoints', 'kita-dots']) {
     map.on('mouseenter', layer, () => { map.getCanvas().style.cursor = 'pointer'; });
     map.on('mouseleave', layer, () => { map.getCanvas().style.cursor = ''; });
   }
@@ -211,7 +212,7 @@ const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', 
 function showPopup(map, e) {
   const r = 6;
   const box = [[e.point.x - r, e.point.y - r], [e.point.x + r, e.point.y + r]];
-  const layers = ['refpoints', 'tram-stops', 'bus-stops', 'tram-lines', 'bus-lines',
+  const layers = ['refpoints', 'kita-dots', 'tram-stops', 'bus-stops', 'tram-lines', 'bus-lines',
     'cycle-track', 'cycle-path', 'cycle-lane', 'cycle-street', 'cycle-busway']
     .filter((id) => map.getLayer(id) && map.getLayoutProperty(id, 'visibility') !== 'none');
   const feats = map.queryRenderedFeatures(box, { layers });
@@ -221,6 +222,11 @@ function showPopup(map, e) {
   let html;
   if (f.layer.id === 'refpoints') {
     html = `<strong>${esc(p.name)}</strong>`;
+  } else if (f.layer.id === 'kita-dots') {
+    const link = p.osm ? ` · <a href="${esc(p.osm)}" target="_blank" rel="noopener">in OSM ansehen</a>` : '';
+    html = `<strong>${esc(p.name || 'Kita ohne Namen')}</strong><br>`
+      + `${p.status === 'confirmed' ? 'Ü3 bestätigt' : 'Ü3 nicht bestätigt'}: ${esc(p.reason)}`
+      + `<br><small>Quelle: ${esc(p.source)}${link}</small>`;
   } else if (f.layer.id.endsWith('-stops')) {
     html = `<strong>${esc(p.name)}</strong><br>Linien: ${esc(p.routes)}`;
   } else if (f.layer.id.endsWith('-lines')) {
@@ -241,6 +247,7 @@ function buildChips() {
   const swatch = {
     buildings: p.building, green: p.landuse.park, relief: p.contour, roads: p.road.primary,
     cycle: p.cycle.track, tram: '#ed1b24', bus: '#1aa8be', rings: p.rings, districts: p.district, names: p.tier2,
+    kitas: p.kita,
   };
   box.replaceChildren(...GROUPS.map((g) => {
     const b = document.createElement('button');
@@ -313,10 +320,19 @@ function buildLegend() {
     [svgLine(p.border, { width: 2, dash: '6 3 2 3' }), 'Landesgrenze (BW/BY, BW/RP)'],
     [svgLine(p.district, { width: 1.5, dash: '4 3' }), 'Stadtteilgrenze'],
     [svgLine(p.rings, { width: 1.5, dash: '6 4' }), 'Radius um Marktplatz/Münster (Luftlinie, Rad 15 km/h)'],
+    [svgDot(p.kita, p.kita), `Kita/Kindergarten mit Ü3-Gruppen, bestätigt (nur im ${meta.kitas.radius_km}-km-Kreis)`],
+    [svgDot(p.halo, p.kita), 'Kita, Ü3 nicht bestätigt (keine Altersangabe)'],
     [svgLine(p.contour, { width: 1.2 }), 'Höhenlinie 10 m (fett: 50 m)'],
     [`<svg width="34" height="12" aria-hidden="true"><text x="2" y="10" font-size="10" font-weight="700" fill="${p.tier2}">ABC</text></svg>`, 'Bevorzugte Stadtteile'],
     [`<svg width="34" height="12" aria-hidden="true"><text x="2" y="10" font-size="10" font-weight="600" fill="${p.tier1}">ABC</text></svg>`, 'Weiteres Interesse'],
   ];
+  const k = meta.kitas;
+  document.getElementById('kita-note').textContent =
+    `Kitas Ü3: Einrichtungen, die Kinder von 3–6 Jahren aufnehmen, im ${k.radius_km}-km-Kreis um Marktplatz bzw. Münster `
+    + '(OpenStreetMap; Krippen, Tagespflege und Horte ausgeblendet). „Bestätigt“ heißt: Altersangabe, „Kindergarten“ im Namen'
+    + (k.official_list_ka ? ' oder Kategorie „Kindergärten“ der Stadt Karlsruhe, deren Liste eingearbeitet ist.'
+      : '; die Liste der Stadt Karlsruhe war beim Erstellen nicht erreichbar.')
+    + ' Ohne Gewähr: Altersgruppen und freie Plätze beim Träger erfragen.';
   document.getElementById('legend').innerHTML = items
     .map(([svg, label]) => `<div class="legend-item">${svg}<span>${label}</span></div>`)
     .join('');
@@ -342,6 +358,11 @@ function renderCompare() {
     ['group', 'Radinfrastruktur (km, je Straßenseite)'],
     ['row', 'Gesamt', '', ka.cycle_km_total, ulm.cycle_km_total, 'km'],
     ...Object.keys(KIND_LABELS).map((k) => ['row', KIND_LABELS[k], '', ka.cycle_km[k], ulm.cycle_km[k], 'km']),
+    ...(ka.kitas && ulm.kitas ? [
+      ['group', 'Kitas mit Ü3-Gruppen'],
+      ['row', 'Ü3 bestätigt', 'Altersangabe, Name oder Stadt-Kategorie', ka.kitas.confirmed, ulm.kitas.confirmed, '', 0],
+      ['row', 'Ü3 nicht bestätigt', 'Kita ohne Altersangabe', ka.kitas.probable, ulm.kitas.probable, '', 0],
+    ] : []),
     ['group', 'Topografie'],
     ['row', 'Höhenspanne', '5.–95. Perzentil', ka.elevation_m.range_p5_p95, ulm.elevation_m.range_p5_p95, 'm', 0],
     ['row', 'Fläche > 30 m über Zentrum', 'Anstieg vom Zentrum aus', ka.elevation_m.share_30m_above_center_pct, ulm.elevation_m.share_30m_above_center_pct, '%'],
@@ -396,7 +417,7 @@ function buildCompare() {
   }));
   const labels = {
     crs: 'Koordinatensystem', circles: 'Kreise', building_share: 'Gebäudegrundfläche', tram_km: 'Straßenbahn',
-    cycle_km: 'Radinfrastruktur', stops: 'Haltestellen', elevation: 'Höhe',
+    cycle_km: 'Radinfrastruktur', stops: 'Haltestellen', kitas: 'Kitas', elevation: 'Höhe',
   };
   document.getElementById('method-list').innerHTML = Object.entries(metrics.method)
     .map(([k, v]) => `<li><strong>${labels[k] ?? k}:</strong> ${esc(v)}</li>`).join('');

@@ -80,6 +80,9 @@ h1 small { font-weight: 500; color: var(--muted); font-size: 0.85em; }
   padding: 2px 0;
 }
 .chips::-webkit-scrollbar { display: none; }
+/* Phones swipe the chip row; wider screens wrap it, since a hidden scrollbar
+   gives no hint that chips are cut off. */
+@media (min-width: 820px) { #chips { flex-wrap: wrap; overflow-x: visible; } }
 
 .chip {
   appearance: none; border: 1px solid var(--line); background: var(--surface); color: var(--muted);
@@ -137,6 +140,8 @@ h1 small { font-weight: 500; color: var(--muted); font-size: 0.85em; }
 .legend-item { display: flex; align-items: center; gap: 8px; font-size: 0.82rem; }
 .legend-item svg { flex: none; }
 
+/* Keeps the "Vergleich" jump target clear of the sticky layer toolbar. */
+#vergleich { scroll-margin-top: 9rem; }
 .compare { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px; }
 .compare-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
 .compare h2, .sources h2 { margin: 0; font-size: 1.05rem; }

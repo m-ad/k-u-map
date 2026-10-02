@@ -23,6 +23,7 @@ frame of 12 km × 10 km and data loaded 4 km beyond each edge.
 | Tram/Bahn | Tram/Stadtbahn lines in their line colours, stops, railway infrastructure | GTFS + OSM |
 | Bus | Bus lines in their line colours, stops | GTFS |
 | Radien | 2/4/6 km circles around Marktplatz and Ulmer Münster, labelled with bike minutes at 15 km/h (straight-line distance) | computed |
+| Kitas Ü3 | Kitas/Kindergärten taking 3–6-year-olds within 2 km of Marktplatz and Münster. Filled dot = Ü3 confirmed, hollow = not confirmed. Names from zoom 14, details and OSM link on click | OSM; Karlsruhe cross-checked with the city's list when reachable |
 | Stadtteilgrenzen | District boundaries; preferred districts tinted | KA Transparenzportal, OSM |
 | Namen | District, quarter, town, river, road and station names | KA Transparenzportal, OSM |
 
@@ -36,6 +37,7 @@ centre:
 - tram route length
 - cycle infrastructure km by type
 - stops
+- Kitas with Ü3 groups (2 km circle only)
 - elevation range
 
 All values are computed by the pipeline (`data/metrics.json`), not hard-coded.
@@ -78,6 +80,7 @@ its licence, data date and download date (from `data/manifest.json`).
 | Transit Ulm/Neu-Ulm | [SWU GTFS](https://www.swu.de/privatkunden/service/mobilitaet/gtfs-daten/) `gtfs.swu.de/daten/SWU.zip` | CC0 | Feed 20260312, valid until 2026-12-31 |
 | Transit Karlsruhe | [NVBW "Fahrplandaten mit Liniennetz", KVV](https://www.nvbw.de/open-data/fahrplandaten/fahrplandaten-mit-liniennetz) | dl-de/by-2-0; `shapes.txt` ODbL | KVV's own CC0 feed has no `shapes.txt`, so it cannot draw lines |
 | District boundaries Karlsruhe | [Transparenzportal Karlsruhe, Stadtteile](https://transparenz.karlsruhe.de/dataset/stadtteile) | CC0 | 27 Stadtteile |
+| Kitas Karlsruhe (cross-check) | [Transparenzportal Karlsruhe, Points of Interest – Kinder und Jugendliche](https://transparenz.karlsruhe.de/dataset/points-of-interest-kinder-und-jugendliche), categories "Kindergärten" and "Kindertagesstätten" | dl-de/by-2-0 | Optional, see [Kitas Ü3](#kitas-ü3) |
 | DEM Baden-Württemberg | [LGL Open GeoData DGM1](https://opengeodata.lgl-bw.de/), 2 km xyz tiles | dl-de/by-2-0 | 1 m, resampled to 5 m |
 | DEM Bayern | [LDBV OpenData DGM1](https://geodaten.bayern.de/opengeodata/), 1 km GeoTIFF via metalink | CC BY 4.0 | SHA-256 verified |
 | DEM gap fill | [Copernicus GLO-30](https://registry.opendata.aws/copernicus-dem/) | Copernicus DEM licence | Only outside BW/BY (≈4 % of the KA extent, west of the Rhine) |
@@ -90,6 +93,52 @@ its licence, data date and download date (from `data/manifest.json`).
   and parking), so Ulm and Neu-Ulm use OSM `admin_level=10`, plus `admin_level=9`
   Ortschaften that are not subdivided.
 - **Neu-Ulm:** OSM, as planned.
+- **Kita lists Ulm/Neu-Ulm:** neither city publishes an open dataset (Ulm's datenhub
+  has none; Neu-Ulm offers an online registration portal, not data), so Ulm/Neu-Ulm
+  Kitas come from OSM only.
+
+## Kitas Ü3
+
+"Ü3" here means a facility that takes children aged 3–6. Pure Kindergärten count, and
+so do mixed Kitas that also have Krippe groups. Pure Krippen, Kindertagespflege, Horte
+and play areas do not.
+
+Open data rarely states age groups. In the 2026-10-01 extracts, about 5 % of OSM
+childcare facilities carry `min_age`/`max_age`: 2 of 61 within 2 km in Karlsruhe,
+5 of 34 in Ulm/Neu-Ulm. `pipeline/kita_rules.py` therefore applies these rules in
+order:
+
+| Evidence | Result |
+|---|---|
+| `min_age`/`max_age` (e.g. 1–6 or 3–6) | confirmed; `max_age` ≤ 3 or `min_age` ≥ 6 → excluded |
+| `nursery=no`, `isced:level=02` | confirmed (`nursery=only`, `isced:level=01` → excluded) |
+| "Kindergarten" in the name | confirmed (in German usage a Kindergarten takes 3–6) |
+| Krippe, Krabbelstube, Tagespflege, Hort, Tagesgruppe, Småland in the name | excluded |
+| `amenity=childcare` without a Kindergarten name | excluded (in OSM Germany mostly Krippen, Tagespflege, Horte) |
+| Kita/Kindertagesstätte/Kinderhaus or any other name on `amenity=kindergarten` | **not confirmed** (hollow dot) |
+
+**Karlsruhe cross-check.** The city's POI list is downloaded when the geoportal
+answers; it does not answer from every network, and when it fails the build uses
+OSM only and the legend says so. Its entries are paired with OSM by distance
+(≤ 80 m, nearest first), because names differ between the sources.
+- Category "Kindergärten" confirms an entry.
+- Category "Kindertagesstätten" goes through the name rules.
+- Entries missing in OSM are added.
+
+**Duplicates.** Facilities are merged when they are mapped twice:
+- same name within 150 m;
+- within 60 m when one is unnamed or its name contains the other's.
+
+**Counts.** OSM only, build of 2026-10-01, 2 km circles:
+
+| | confirmed | not confirmed | excluded |
+|---|---|---|---|
+| Karlsruhe | 14 | 36 | 9 |
+| Ulm/Neu-Ulm | 14 | 13 | 7 |
+
+The monthly rebuild refreshes these. Per-city counts and exclusion reasons are in
+`data/kitas_info.json`. Excluded entries are in `data/layers/<city>/kitas_excluded.geojsonl`;
+they are not published, because Tagespflege entries can carry private persons' names.
 
 ## The 2027 Ulm/Neu-Ulm network
 
@@ -121,7 +170,7 @@ Prerequisites (Ubuntu 24.04 package names):
 sudo apt-get install osmium-tool tippecanoe
 uv sync
 npm ci
-uv run python -m pipeline build        # download → osm → gtfs → districts → dem → tiles → metrics → site
+uv run python -m pipeline build        # download → osm → gtfs → districts → kitas → dem → tiles → metrics → site
 uv run python -m pipeline.serve        # preview dist/ at http://127.0.0.1:8000 (supports HTTP Range)
 uv run pytest                          # unit + data validation + browser smoke test
 ```
@@ -179,6 +228,11 @@ Source* to **GitHub Actions**.
   for the strip west of the Rhine and excluded from the elevation metrics.
 - **Neighbourhood labels:** OSM `place=neighbourhood` also tags housing projects. A
   configurable exclude list in `config/project.toml` filters the obvious ones.
+- **Kitas:**
+  - Coverage and names come from OSM.
+  - "Not confirmed" can still be a pure Krippe.
+  - No information on free places, opening hours or Träger.
+  - The radius is straight-line distance from Marktplatz/Münster.
 - **Ring labels:** bike minutes are straight-line distance at 15 km/h, not routed
   times.
 
@@ -193,3 +247,5 @@ tests/             pytest: scale math, rules, data validation, Playwright smoke 
 ```
 
 Personal data: none. The map contains public places and statistics only.
+Kindertagespflege entries, which may be named after a private person, are excluded
+from the Kita layer and not published.

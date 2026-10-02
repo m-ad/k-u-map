@@ -36,12 +36,13 @@ VENDOR = {
     "fonts/noto-sans-latin-400-italic.woff2": "@fontsource/noto-sans/files/noto-sans-latin-400-italic.woff2",
     "fonts/LICENSE": "@fontsource/noto-sans/LICENSE",
 }
-OVERLAYS = ("labels", "refpoints", "rings")
+OVERLAYS = ("labels", "refpoints", "rings", "kitas")
 SOURCE_ORDER = (
     "osm",
     "gtfs_swu",
     "gtfs_kvv",
     "districts_ka",
+    "kitas_ka",
     "dem_bw",
     "dem_by",
     "dem_copernicus",
@@ -76,6 +77,8 @@ def build_meta(project: Project, manifest: Manifest) -> dict:
     stamps_path = data_dir() / "osm" / "timestamps.json"
     stamps = json.loads(stamps_path.read_text()) if stamps_path.exists() else {}
     coverage = json.loads((data_dir() / "dem" / "coverage.json").read_text())
+    kitas = json.loads((data_dir() / "kitas_info.json").read_text())
+    ka_list = kitas["cities"].get("ka", {})
 
     def downloaded(source: str) -> str | None:
         dates = [e.downloaded for e in manifest.for_source(source)]
@@ -95,6 +98,9 @@ def build_meta(project: Project, manifest: Manifest) -> dict:
             a=_fmt_yyyymmdd(gtfs["feeds"]["kvv"]["start"]),
             b=_fmt_yyyymmdd(gtfs["feeds"]["kvv"]["end"]),
         ),
+        "kitas_ka": "{} Einträge im {:g}-km-Kreis, davon {} auch in OSM".format(
+            ka_list.get("official_in_radius", 0), kitas["radius_km"], ka_list.get("official_matched_osm", 0)
+        ),
         "dem_bw": "Anteil KA {:.0%}, Ulm {:.0%}".format(coverage["ka"]["lgl_bw"], coverage["ulm"]["lgl_bw"]),
         "dem_by": "Anteil Ulm/Neu-Ulm {:.0%}".format(coverage["ulm"]["ldbv_by"]),
         "dem_copernicus": "nur Lückenfüllung, Anteil KA {:.0%}, Ulm {:.0%}".format(
@@ -103,6 +109,9 @@ def build_meta(project: Project, manifest: Manifest) -> dict:
     }
     sources = []
     for sid in SOURCE_ORDER:
+        if sid == "kitas_ka" and not ka_list.get("official_list"):
+            # Optional source, not reachable for this build: nothing to attribute.
+            continue
         s = project.sources[sid]
         sources.append(
             {
@@ -135,6 +144,7 @@ def build_meta(project: Project, manifest: Manifest) -> dict:
         "gtfs": gtfs["feeds"],
         "dem": coverage,
         "sources": sources,
+        "kitas": {"radius_km": kitas["radius_km"], "official_list_ka": bool(ka_list.get("official_list"))},
     }
 
 

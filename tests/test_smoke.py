@@ -57,7 +57,7 @@ def test_page_loads_without_errors_and_keeps_scale(page: Page, site_url: str, wi
     page.wait_for_timeout(500)
     assert "Zoomfaktor ×1" in page.inner_text("#readout")
 
-    assert page.locator("#chips .chip").count() == 10
+    assert page.locator("#chips .chip").count() == 11
     bus = page.locator('#chips .chip[data-group="bus"]')
     before = bus.get_attribute("aria-pressed")
     bus.click()
@@ -66,6 +66,8 @@ def test_page_loads_without_errors_and_keeps_scale(page: Page, site_url: str, wi
 
     page.wait_for_selector("#compare-table .row", timeout=10_000)
     assert page.locator("#compare-table .row").count() > 10
+    # The default 2 km circle includes the Kita counts.
+    assert "Ü3 bestätigt" in page.inner_text("#compare-table")
     assert page.locator("#sources li").count() >= 8
 
     page.wait_for_timeout(1500)

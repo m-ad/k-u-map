@@ -35,6 +35,7 @@ OSM_LAYERS = (
     "admin",
     "border",
     "buildings",
+    "childcare",
     "cycle",
     "landuse",
     "places",
@@ -44,6 +45,9 @@ OSM_LAYERS = (
     "water",
     "waterway",
 )
+# Facilities the Ü3 kindergarten rules (kita_rules.py) classify, and the tags they read.
+CHILDCARE_AMENITIES = {"kindergarten", "childcare"}
+CHILDCARE_TAGS = ("name", "amenity", "min_age", "max_age", "nursery", "isced:level")
 AREA_KEYS = ("building", "landuse", "natural", "leisure", "amenity", "waterway", "boundary", "place")
 
 
@@ -114,6 +118,10 @@ def _relation_pass(pbf: Path) -> tuple[set[int], dict[str, dict[str, str]]]:
     return members, colours
 
 
+def _childcare_props(tags: osmium.osm.TagList, osm_id: str) -> dict[str, Any]:
+    return {**{k: tags[k] for k in CHILDCARE_TAGS if k in tags}, "osm_id": osm_id}
+
+
 def _flags(tags: osmium.osm.TagList) -> dict[str, Any]:
     out: dict[str, Any] = {}
     if tags.get("bridge", "no") not in ("no",):
@@ -170,6 +178,10 @@ def extract_city(pbf: Path, out_dir: Path, bbox: Bounds) -> Counter[str]:
                 g = geom_of(wkb.create_point, o)
                 if g is not None:
                     w.write("stations", {"name": name, "kind": tags.get("railway")}, g)
+            if tags.get("amenity") in CHILDCARE_AMENITIES:
+                g = geom_of(wkb.create_point, o)
+                if g is not None:
+                    w.write("childcare", _childcare_props(tags, f"n{o.id}"), g)
         elif o.is_way():
             if o.id in border_ways:
                 g = geom_of(wkb.create_linestring, o)
@@ -237,6 +249,10 @@ def extract_city(pbf: Path, out_dir: Path, bbox: Bounds) -> Counter[str]:
                         {"name": t["name"], "place": t["place"], "osm_id": f"a{o.id}"},
                         g.representative_point(),
                     )
+            if t.get("amenity") in CHILDCARE_AMENITIES:
+                g = g or geom_of(wkb.create_multipolygon, o)
+                if g is not None:
+                    w.write("childcare", _childcare_props(tags, f"a{o.id}"), g.representative_point())
     w.close()
     return w.counts
 

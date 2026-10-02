@@ -48,6 +48,20 @@ attribution = "Stadtteilgrenzen: Stadt Karlsruhe, Transparenzportal (CC0)"
 homepage = "https://transparenz.karlsruhe.de/dataset/stadtteile"
 url = "https://transparenz.karlsruhe.de/dataset/8474ba52-f851-4f4b-b05a-1cba9bbd1f4d/resource/2a7fd644-bc67-477a-bb9e-cf88f076b7af/download/stadtteile.json"
 
+[kitas_ka]
+name = "Points of Interest – Kinder und Jugendliche (Stadt Karlsruhe)"
+license = "Datenlizenz Deutschland – Namensnennung 2.0"
+license_url = "https://www.govdata.de/dl-de/by-2-0"
+attribution = "Kindergärten/Kitas Karlsruhe: Stadt Karlsruhe (dl-de/by-2-0)"
+homepage = "https://transparenz.karlsruhe.de/dataset/points-of-interest-kinder-und-jugendliche"
+# Optional cross-check of the OSM facilities in Karlsruhe. The geoportal is not
+# reachable from every network; the build then uses OSM alone (and says so).
+# GeoJSON resources of the dataset per city-map category; "&outSR=4326" is appended
+# so coordinates are WGS84 whatever the service's native CRS.
+[kitas_ka.urls]
+"Kindergärten" = "https://geoportal.karlsruhe.de/ags04/rest/services/Hosted/Stadtplan_POIs_Kinder_Jugendliche/FeatureServer/0/query?where=gruppenname_de%3D%27Kindergärten%27&outFields=name%2Cgruppenname_de&returnGeometry=true&f=geojson&outSR=4326"
+"Kindertagesstätten" = "https://geoportal.karlsruhe.de/ags04/rest/services/Hosted/Stadtplan_POIs_Kinder_Jugendliche/FeatureServer/0/query?where=gruppenname_de%3D%27Kindertagesstätten%27&outFields=name%2Cgruppenname_de&returnGeometry=true&f=geojson&outSR=4326"
+
 [dem_bw]
 name = "LGL Baden-Württemberg DGM1"
 license = "Datenlizenz Deutschland – Namensnennung 2.0"

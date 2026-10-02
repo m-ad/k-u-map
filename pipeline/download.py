@@ -348,6 +348,37 @@ def download_districts(project: Project, manifest: Manifest) -> Path:
     )
 
 
+def kitas_ka_path(category: str) -> Path:
+    """Cache path of one category of the Karlsruhe POI list."""
+    slug = category.lower().replace("ä", "ae").replace("ö", "oe").replace("ü", "ue").replace("ß", "ss")
+    return data_dir() / "cache" / "kitas" / f"ka_{slug}.geojson"
+
+
+def download_kitas_ka(project: Project, manifest: Manifest) -> bool:
+    """Fetch the Karlsruhe Kindergarten/Kita lists; failures are not fatal.
+
+    Returns
+    -------
+    bool
+        Whether every category is available locally (fresh or from cache).
+    """
+    ok = True
+    for category, url in project.sources["kitas_ka"]["urls"].items():
+        try:
+            # One retry only: the source is optional and its server tends to hang.
+            fetch(url, kitas_ka_path(category), manifest, "kitas_ka", max_age_days=30, retries=1)
+        except (requests.RequestException, NotFound, OSError) as exc:
+            cached = kitas_ka_path(category).exists()
+            log.warning(
+                "Karlsruhe Kita list %r not downloaded (%s); %s",
+                category,
+                exc,
+                "using cached copy" if cached else "using OSM only",
+            )
+            ok = ok and cached
+    return ok
+
+
 # ---------------------------------------------------------------------- DEM
 
 
